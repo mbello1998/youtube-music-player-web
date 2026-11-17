@@ -11,11 +11,21 @@ export const PUBLIC_ENTRIES = ["player.html", "assets"];
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const PUBLIC_DIR = path.join(ROOT, "public");
 
+// Test files live alongside their source under assets/ (discovery.test.mjs,
+// local-state-api.test.mjs) — real for Node's test runner, but nothing the
+// hosted page itself ever fetches, so they're excluded from what ships.
+export function shouldExcludeFromPublic(sourcePath) {
+  return /\.test\.(mjs|mts|js|ts)$/.test(sourcePath);
+}
+
 export async function buildPublic() {
   await rm(PUBLIC_DIR, { recursive: true, force: true });
   await mkdir(PUBLIC_DIR, { recursive: true });
   for (const entry of PUBLIC_ENTRIES) {
-    await cp(path.join(ROOT, entry), path.join(PUBLIC_DIR, entry), { recursive: true });
+    await cp(path.join(ROOT, entry), path.join(PUBLIC_DIR, entry), {
+      recursive: true,
+      filter: (src) => !shouldExcludeFromPublic(src),
+    });
   }
 }
 

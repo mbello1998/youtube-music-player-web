@@ -6803,3 +6803,20 @@ input:checked + .slider-toggle:before {
 #barEngineModeBtn {
     display: none !important;
 }
+
+/* Hosted build (video-only engine): hide every control that only works by
+   processing the raw Web Audio graph (EQ filters, stem separation,
+   mastering DSP, true pitch-independent BPM sync). None of it has an
+   effect on the audio actually heard in video mode (the YouTube iframe's
+   own native audio) — the buttons would otherwise sit there doing
+   nothing, or opening a modal whose knobs move but change nothing. */
+#barEqBtn,
+#barStemsBtn,
+#barStudioBtn,
+#barBpmSyncBtn,
+#spotifyDjMixer,
+#bpmLiveSyncPanel,
+#djDropHunterHud,
+#djClubCrossoverHud {
+    display: none !important;
+}
