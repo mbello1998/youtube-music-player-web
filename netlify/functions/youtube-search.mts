@@ -12,7 +12,7 @@ export type SearchResult = {
 };
 
 export type BlobStore = {
-  get: (key: string) => Promise<unknown>;
+  get: (key: string, opts?: { type?: "json" }) => Promise<unknown>;
   setJSON: (key: string, value: unknown) => Promise<void>;
 };
 
@@ -36,21 +36,34 @@ export async function searchYouTube({
   blobStore,
 }: SearchYouTubeArgs): Promise<SearchResult> {
   const key = cacheKey(query, limit);
-  const cached = await blobStore.get(key);
+  const cached = await blobStore.get(key, { type: "json" });
   if (cached) {
     return cached as SearchResult;
   }
 
   const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=${limit}&q=${encodeURIComponent(query)}&key=${apiKey}`;
-  const response = await fetchImpl(url);
+
+  let response: Response;
+  try {
+    response = await fetchImpl(url);
+  } catch {
+    // network error reaching the YouTube API — degrade, never throw
+    return { tracks: [], quotaExceeded: true };
+  }
 
   if (!response.ok) {
     return { tracks: [], quotaExceeded: true };
   }
 
-  const data = (await response.json()) as {
+  let data: {
     items?: Array<{ id?: { videoId?: string }; snippet?: { title?: string; channelTitle?: string } }>;
   };
+  try {
+    data = await response.json();
+  } catch {
+    // YouTube returned a 2xx with a non-JSON body — degrade, never throw
+    return { tracks: [], quotaExceeded: true };
+  }
 
   const tracks: Track[] = (data.items || [])
     .filter((item) => item.id?.videoId && item.snippet?.title)

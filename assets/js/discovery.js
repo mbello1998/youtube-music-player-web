@@ -238,7 +238,7 @@ export async function discoverTracks({
     : collectExcludedIds({ libraryData, queue, seenIds });
 
   const query = customQuery || getNextQuery(category, storage);
-  const { tracks: rawTracks } = await searchFn(query, 25);
+  const { tracks: rawTracks = [] } = (await searchFn(query, 25)) || {};
 
   const results = [];
   for (const t of rawTracks) {
@@ -349,7 +349,7 @@ export async function discoverRelatedTracks({
   const results = [];
   for (const q of queriesToRun) {
     if (results.length >= limit) break;
-    const { tracks: rawTracks } = await searchFn(q, 15);
+    const { tracks: rawTracks = [] } = (await searchFn(q, 15)) || {};
     for (const t of rawTracks) {
       if (results.length >= limit) break;
       if (!t.video_id || !t.title) continue;

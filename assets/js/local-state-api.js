@@ -106,12 +106,29 @@ export function addToLibrary(storage, libraryData, track) {
   return { video_id: existing.video_id, title: existing.title, category: existing.category, count: lib.length };
 }
 
+function isInSharedCatalog(libraryData, videoId) {
+  return Object.values(libraryData || {}).some((tracks) => (tracks || []).some((t) => t.video_id === videoId));
+}
+
 export function removeFromLibrary(storage, libraryData, videoId) {
   const lib = getPersonalLibrary(storage);
   const initialLen = lib.length;
   const filtered = lib.filter((t) => t.video_id !== videoId);
   writeJSON(storage, "personal_library", filtered);
-  return { removed_count: initialLen - filtered.length, video_id: videoId, count: filtered.length };
+
+  let removedCount = initialLen - filtered.length;
+  // Not a personal addition — if it's one of the shared, read-only catalog
+  // tracks, remember to hide it for this visitor instead of reporting a
+  // false "removed" that undoes itself on the next reload.
+  if (removedCount === 0 && isInSharedCatalog(libraryData, videoId)) {
+    const hidden = readJSON(storage, "hidden_ids", []);
+    if (!hidden.includes(videoId)) {
+      hidden.push(videoId);
+      writeJSON(storage, "hidden_ids", hidden);
+    }
+    removedCount = 1;
+  }
+  return { removed_count: removedCount, video_id: videoId, count: filtered.length };
 }
 
 export function moveInLibrary(storage, libraryData, videoId, newCategory, oldCategory) {
@@ -134,6 +151,16 @@ export function moveInLibrary(storage, libraryData, videoId, newCategory, oldCat
     }
   }
   writeJSON(storage, "personal_library", lib);
+
+  // Same as removeFromLibrary: a shared-catalog track isn't in personal_library
+  // at all, so record a per-visitor category override instead of a no-op.
+  if (!moved && isInSharedCatalog(libraryData, videoId)) {
+    const overrides = readJSON(storage, "category_overrides", {});
+    overrides[videoId] = newCategory;
+    writeJSON(storage, "category_overrides", overrides);
+    moved = true;
+  }
+
   return { success: moved, video_id: videoId, new_category: newCategory, count: lib.length };
 }
 
@@ -335,6 +362,32 @@ export function mergePersonalLibraryIntoData(DATA, storage) {
       DATA[entry.category].unshift(entry);
     }
   }
+
+  const hidden = new Set(readJSON(storage, "hidden_ids", []));
+  const overrides = readJSON(storage, "category_overrides", {});
+  if (!hidden.size && !Object.keys(overrides).length) return;
+
+  for (const category of Object.keys(DATA)) {
+    DATA[category] = DATA[category].filter((t) => !hidden.has(t.video_id));
+  }
+
+  for (const [videoId, newCategory] of Object.entries(overrides)) {
+    let moved = null;
+    for (const category of Object.keys(DATA)) {
+      const idx = DATA[category].findIndex((t) => t.video_id === videoId);
+      if (idx !== -1) {
+        [moved] = DATA[category].splice(idx, 1);
+        break;
+      }
+    }
+    if (moved) {
+      moved.category = newCategory;
+      if (!DATA[newCategory]) DATA[newCategory] = [];
+      if (!DATA[newCategory].some((t) => t.video_id === videoId)) {
+        DATA[newCategory].unshift(moved);
+      }
+    }
+  }
 }
 
 export function lockEngineModeToVideo(storage) {
@@ -348,20 +401,55 @@ export function lockEngineModeToVideo(storage) {
   }
 }
 
-async function fetchYouTubeSearch(query, limit) {
-  const res = await fetch(`/api/youtube-search?q=${encodeURIComponent(query)}&limit=${limit}`);
-  return res.json();
+export async function fetchYouTubeSearch(query, limit) {
+  try {
+    const res = await fetch(`/api/youtube-search?q=${encodeURIComponent(query)}&limit=${limit}`);
+    if (!res.ok) return { tracks: [], quotaExceeded: true };
+    return await res.json();
+  } catch {
+    // network error, cold start timeout, or a non-JSON error page — degrade, never throw
+    return { tracks: [], quotaExceeded: true };
+  }
+}
+
+export function createMemoryStorage() {
+  const map = new Map();
+  return {
+    getItem: (k) => (map.has(k) ? map.get(k) : null),
+    setItem: (k, v) => {
+      map.set(k, String(v));
+    },
+    removeItem: (k) => {
+      map.delete(k);
+    },
+  };
+}
+
+// Private/incognito mode (Safari in particular) can make *accessing*
+// `window.localStorage` itself throw, not just its methods — so this probes
+// before ever handing the storage object to the rest of the module.
+export function resolveStorage(win) {
+  try {
+    const s = win.localStorage;
+    const probeKey = "__ymp_storage_probe__";
+    s.setItem(probeKey, "1");
+    s.removeItem ? s.removeItem(probeKey) : s.setItem(probeKey, "");
+    return s;
+  } catch {
+    return createMemoryStorage();
+  }
 }
 
 // Bootstrap: runs automatically when this module is loaded in a browser.
 // Must execute before player.js's own top-level `const DATA = window.DATA || {}`
 // (player.js:3) — the script tag order in player.html (Task 8) guarantees that.
 if (typeof window !== "undefined") {
-  lockEngineModeToVideo(window.localStorage);
-  mergePersonalLibraryIntoData(window.DATA || (window.DATA = {}), window.localStorage);
+  const storage = resolveStorage(window);
+  lockEngineModeToVideo(storage);
+  mergePersonalLibraryIntoData(window.DATA || (window.DATA = {}), storage);
   window.fetch = createInterceptedFetch({
     originalFetch: window.fetch.bind(window),
-    storage: window.localStorage,
+    storage,
     getLibraryData: () => window.DATA || {},
     searchFnForYoutube: fetchYouTubeSearch,
   });

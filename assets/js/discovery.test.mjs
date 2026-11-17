@@ -76,6 +76,20 @@ test("discoverTracks excludes known ids and sorts by closeness to the seed BPM",
   assert.deepEqual(results.map((t) => t.video_id), ["close", "far"]); // "known" excluded, closest first
 });
 
+test("discoverTracks doesn't throw when searchFn resolves without a tracks array at all", async () => {
+  const storage = fakeStorage();
+  const searchFn = async () => ({}); // no `tracks` key — malformed/unexpected response shape
+  const results = await discoverTracks({
+    category: "Mega Funk & Ritmadas",
+    limit: 10,
+    storage,
+    libraryData: {},
+    queue: [],
+    searchFn,
+  });
+  assert.deepEqual(results, []);
+});
+
 test("discoverRelatedTracks issues at most 2 searches", async () => {
   const storage = fakeStorage();
   let callCount = 0;
@@ -96,4 +110,22 @@ test("discoverRelatedTracks issues at most 2 searches", async () => {
     searchFn,
   });
   assert.ok(callCount <= 2);
+});
+
+test("discoverRelatedTracks doesn't throw when searchFn resolves without a tracks array at all", async () => {
+  const storage = fakeStorage();
+  const searchFn = async () => ({}); // no `tracks` key
+  const results = await discoverRelatedTracks({
+    title: "Some Song",
+    artist: "Some Artist",
+    category: "Mega Funk & Ritmadas",
+    currentVideoId: "cur1",
+    targetBpm: 130,
+    limit: 10,
+    storage,
+    libraryData: {},
+    queue: [],
+    searchFn,
+  });
+  assert.deepEqual(results, []);
 });

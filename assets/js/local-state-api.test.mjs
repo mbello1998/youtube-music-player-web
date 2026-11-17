@@ -16,6 +16,8 @@ import {
   createInterceptedFetch,
   mergePersonalLibraryIntoData,
   lockEngineModeToVideo,
+  fetchYouTubeSearch,
+  resolveStorage,
 } from "./local-state-api.js";
 
 function fakeStorage() {
@@ -84,6 +86,29 @@ test("moveInLibrary changes the category of an existing entry", () => {
   addToLibrary(storage, libraryData, { video_id: "v1", title: "T", artist: "", category: "Outros" });
   moveInLibrary(storage, libraryData, "v1", "Samba & Pagode", "Outros");
   assert.equal(getPersonalLibrary(storage)[0].category, "Samba & Pagode");
+});
+
+test("removing a shared-catalog track (not in the personal library) hides it after a reload", () => {
+  const storage = fakeStorage();
+  const libraryData = { Outros: [{ video_id: "shared1", title: "Shared Track", category: "Outros" }] };
+  const result = removeFromLibrary(storage, libraryData, "shared1");
+  assert.equal(result.removed_count, 1);
+
+  const DATA = { Outros: [{ video_id: "shared1", title: "Shared Track", category: "Outros" }] };
+  mergePersonalLibraryIntoData(DATA, storage);
+  assert.equal(DATA.Outros.some((t) => t.video_id === "shared1"), false);
+});
+
+test("moving a shared-catalog track (not in the personal library) survives a reload", () => {
+  const storage = fakeStorage();
+  const libraryData = { Outros: [{ video_id: "shared2", title: "Shared Track 2", category: "Outros" }] };
+  const result = moveInLibrary(storage, libraryData, "shared2", "Samba & Pagode", "Outros");
+  assert.equal(result.success, true);
+
+  const DATA = { Outros: [{ video_id: "shared2", title: "Shared Track 2", category: "Outros" }] };
+  mergePersonalLibraryIntoData(DATA, storage);
+  assert.equal(DATA.Outros.some((t) => t.video_id === "shared2"), false);
+  assert.equal(DATA["Samba & Pagode"].some((t) => t.video_id === "shared2"), true);
 });
 
 // --- Sync URL ---
@@ -308,4 +333,57 @@ test("lockEngineModeToVideo always sets the stored preference to video", () => {
   storage.setItem("pref_engine_mode", "audio");
   lockEngineModeToVideo(storage);
   assert.equal(storage.getItem("pref_engine_mode"), "video");
+});
+
+// --- fetchYouTubeSearch resilience (Review Focus item 1, client side) ---
+
+test("fetchYouTubeSearch degrades to quotaExceeded instead of throwing when the network call fails", async (t) => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error("network down"); };
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const result = await fetchYouTubeSearch("funk", 15);
+  assert.deepEqual(result, { tracks: [], quotaExceeded: true });
+});
+
+test("fetchYouTubeSearch degrades to quotaExceeded on a non-ok response", async (t) => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response("Internal Server Error", { status: 500 });
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const result = await fetchYouTubeSearch("funk", 15);
+  assert.deepEqual(result, { tracks: [], quotaExceeded: true });
+});
+
+// --- Storage resolution: private/incognito mode (Review Focus item 3) ---
+
+test("resolveStorage returns the real storage when localStorage is usable", () => {
+  const real = fakeStorage();
+  const win = { localStorage: real };
+  const resolved = resolveStorage(win);
+  resolved.setItem("k", "v");
+  assert.equal(real.getItem("k"), "v");
+});
+
+test("resolveStorage falls back to an in-memory store when accessing localStorage throws", () => {
+  const win = {
+    get localStorage() {
+      throw new Error("SecurityError: storage blocked");
+    },
+  };
+  const resolved = resolveStorage(win);
+  resolved.setItem("k", "v");
+  assert.equal(resolved.getItem("k"), "v"); // works, just doesn't persist across reloads
+});
+
+test("resolveStorage falls back to an in-memory store when localStorage.setItem itself throws (quota/blocked)", () => {
+  const win = {
+    localStorage: {
+      getItem: () => null,
+      setItem: () => { throw new Error("blocked"); },
+    },
+  };
+  const resolved = resolveStorage(win);
+  resolved.setItem("k", "v");
+  assert.equal(resolved.getItem("k"), "v");
 });

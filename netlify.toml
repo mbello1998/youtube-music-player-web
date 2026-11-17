@@ -1,6 +1,11 @@
 [build]
-  publish = "."
+  command = "npm run build"
+  publish = "public"
   functions = "netlify/functions"
+
+# `netlify dev` doesn't run [build].command for a plain static site — run
+# `npm run build` once by hand before `netlify dev` (and after any change to
+# player.html/assets/). Netlify's own deploys always run it automatically.
 
 [[redirects]]
   from = "/"
