@@ -1,0 +1,16 @@
+{
+  "name": "youtube-music-player-web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^8.2.0",
+    "@netlify/functions": "^3.0.4"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.38.1"
+  }
+}
