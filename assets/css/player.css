@@ -2927,11 +2927,18 @@
             display: flex;
             align-items: center;
             gap: 7px;
-            width: 250px;
-            min-width: 250px;
-            max-width: 250px;
+            width: 440px;
+            min-width: 440px;
+            max-width: 440px;
             justify-content: flex-end;
             flex-shrink: 0;
+            /* Netlify's free-tier badge is a fixed iframe pinned to the
+               bottom-right corner (~197x64px) with a z-index above
+               everything on the page. The extra 190px of width here is
+               reserved as clearance so the volume controls render to its
+               left instead of underneath it — the controls themselves
+               still get their original ~250px. */
+            padding-right: 190px;
         }
         .volume-slider {
             flex: 1;
