@@ -178,3 +178,203 @@ export function resolveOfficialCategory(title, artist = "") {
   }
   return "Outros";
 }
+
+function readJSON(storage, key, fallback) {
+  try {
+    const raw = storage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return parsed ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJSON(storage, key, value) {
+  try {
+    storage.setItem(key, JSON.stringify(value));
+  } catch {
+    // storage unavailable (private mode etc.) — silently skip persistence
+  }
+}
+
+export function getNextQuery(category, storage) {
+  const queries = GENRE_SEARCH_QUERIES[category] || GENRE_SEARCH_QUERIES.Outros;
+  const rotation = readJSON(storage, "genre_rotation", {});
+  const currIdx = rotation[category] || 0;
+  const query = queries[currIdx % queries.length];
+  rotation[category] = currIdx + 1;
+  writeJSON(storage, "genre_rotation", rotation);
+  return query;
+}
+
+export function collectExcludedIds({ libraryData, queue, seenIds }) {
+  const ids = new Set();
+  Object.values(libraryData || {}).forEach((tracks) => {
+    (tracks || []).forEach((t) => {
+      if (t.video_id) ids.add(t.video_id);
+    });
+  });
+  (queue || []).forEach((t) => {
+    if (t.video_id) ids.add(t.video_id);
+  });
+  (seenIds || []).forEach((id) => ids.add(id));
+  return ids;
+}
+
+export async function discoverTracks({
+  category,
+  customQuery,
+  seedBpm,
+  limit = 12,
+  storage,
+  libraryData,
+  queue,
+  searchFn,
+}) {
+  const seenIds = customQuery ? [] : readJSON(storage, "seen_suggested_ids", []);
+  const excludedIds = customQuery
+    ? new Set()
+    : collectExcludedIds({ libraryData, queue, seenIds });
+
+  const query = customQuery || getNextQuery(category, storage);
+  const { tracks: rawTracks } = await searchFn(query, 25);
+
+  const results = [];
+  for (const t of rawTracks) {
+    if (!t.video_id || !t.title) continue;
+    if (excludedIds.has(t.video_id)) continue;
+    if (results.some((r) => r.video_id === t.video_id)) continue;
+
+    results.push({
+      video_id: t.video_id,
+      title: t.title,
+      artist: t.artist || "",
+      category,
+      bpm: detectOrEstimateBpm(t.title, category),
+      query_used: query,
+    });
+    if (results.length >= limit) break;
+  }
+
+  if (!customQuery) {
+    const newIds = results.map((r) => r.video_id);
+    writeJSON(storage, "seen_suggested_ids", [...new Set([...seenIds, ...newIds])]);
+  }
+
+  const [, , defaultBpm] = GENRE_BPM_RANGES[category] || [115, 130, 124];
+  const targetBpm = seedBpm || defaultBpm;
+  results.sort((a, b) => Math.abs(a.bpm - targetBpm) - Math.abs(b.bpm - targetBpm));
+
+  return results;
+}
+
+const STOP_WORDS = new Set([
+  "de", "da", "do", "das", "dos", "e", "em", "um", "uma", "a", "o", "as", "os", "ao", "na", "no",
+  "com", "por", "para", "remix", "feat", "ft", "mc", "dj", "official", "video", "clipe",
+]);
+
+function cleanTrackText(text) {
+  return (text || "")
+    .replace(/\(.*?\)|\[.*?\]|feat\..*|ft\..*|clipe oficial|v[íi]deo oficial|official video|lyric video/gi, "")
+    .trim();
+}
+
+export async function discoverRelatedTracks({
+  title,
+  artist,
+  category,
+  currentVideoId,
+  targetBpm,
+  limit = 12,
+  storage,
+  libraryData,
+  queue,
+  searchFn,
+}) {
+  const cleanTitle = cleanTrackText(title);
+  const cleanArtist = (artist || "").replace(/\(.*?\)|\[.*?\]/g, "").trim();
+
+  const seenIds = readJSON(storage, "seen_suggested_ids", []);
+  const excludedIds = collectExcludedIds({ libraryData, queue, seenIds });
+  if (currentVideoId) excludedIds.add(currentVideoId);
+
+  const seedBpm = targetBpm || detectOrEstimateBpm(cleanTitle || title, category);
+
+  const rawWords = (cleanTitle.toLowerCase().match(/[a-zà-ÿ0-9]{3,}/gi) || []);
+  const titleKeywords = rawWords.filter((w) => !STOP_WORDS.has(w));
+
+  const isHighEnergy =
+    seedBpm >= 125 || /mega|funk|eletr|desande|trap|ritm|treino/i.test(category || "");
+
+  const queries = [];
+  if (isHighEnergy) {
+    queries.push(
+      `${category} treino pesado motivacao ${seedBpm} bpm`,
+      `musica para treino academia pump ${seedBpm} bpm`,
+      `cardio ${seedBpm} bpm bass boost treino`,
+      `set treino musculacao ${category} ${seedBpm} bpm som pesado`,
+      `${category} ${seedBpm} bpm lancamento`,
+    );
+  } else {
+    queries.push(
+      `${category} ${seedBpm} bpm lancamento`,
+      `ritmo ${category} ${seedBpm} bpm`,
+      `set ${category} ${seedBpm} bpm`,
+      `novidades ${category} ${seedBpm} bpm hits 2024`,
+    );
+  }
+
+  const genreList = GENRE_SEARCH_QUERIES[category] || [];
+  if (genreList.length) {
+    const shuffled = [...genreList].sort(() => Math.random() - 0.5);
+    queries.push(...shuffled.slice(0, 2));
+  }
+
+  if (cleanArtist) {
+    if (isHighEnergy) {
+      queries.unshift(`${cleanArtist} treino motivacao ritmo ${seedBpm} bpm`);
+      queries.push(`artistas parecidos com ${cleanArtist} ${seedBpm} bpm treino`);
+    } else {
+      queries.unshift(`artistas parecidos com ${cleanArtist} ${seedBpm} bpm`);
+      queries.push(`${cleanArtist} ritmo ${category} ${seedBpm} bpm`);
+    }
+  }
+
+  // Quota guard: the Python original issues up to ~7 queries per call; this
+  // runs automatically (not just on explicit search), so it's capped at 2
+  // to protect the shared YouTube search quota (see plan's Global Constraints).
+  const queriesToRun = queries.slice(0, 2);
+
+  const results = [];
+  for (const q of queriesToRun) {
+    if (results.length >= limit) break;
+    const { tracks: rawTracks } = await searchFn(q, 15);
+    for (const t of rawTracks) {
+      if (results.length >= limit) break;
+      if (!t.video_id || !t.title) continue;
+      if (excludedIds.has(t.video_id)) continue;
+      if (results.some((r) => r.video_id === t.video_id)) continue;
+
+      const lowerTitle = t.title.toLowerCase();
+      if (titleKeywords.slice(0, 2).some((kw) => lowerTitle.includes(kw))) continue;
+
+      const bpm = detectOrEstimateBpm(t.title, category);
+      results.push({
+        video_id: t.video_id,
+        title: t.title,
+        artist: t.artist || "",
+        category: category || "Relacionadas",
+        bpm,
+        source: `Spotify AI • ${bpm} BPM`,
+      });
+    }
+  }
+
+  const newIds = results.map((r) => r.video_id);
+  writeJSON(storage, "seen_suggested_ids", [...new Set([...seenIds, ...newIds])]);
+
+  results.sort((a, b) => Math.abs(a.bpm - seedBpm) - Math.abs(b.bpm - seedBpm));
+
+  return results;
+}
