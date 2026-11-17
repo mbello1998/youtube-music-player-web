@@ -7814,8 +7814,10 @@ function triggerCrossfade(nextTrack) {
                     autoAdvanceWithFade();
                 }, 1200);
             } else if (code === 150 || code === 101 || code === 5) {
-                showToast("🎵 Vídeo bloqueado no YouTube por direitos autorais. Ativando Áudio HD sem restrições!");
-                setEngineMode("audio");
+                showToast("⚠️ Vídeo bloqueado por direitos autorais. Avançando para a próxima música...");
+                setTimeout(() => {
+                    autoAdvanceWithFade();
+                }, 1200);
             }
         }
 
