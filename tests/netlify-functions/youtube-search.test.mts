@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { searchYouTube } from "./youtube-search.mts";
+import { searchYouTube } from "../../netlify/functions/youtube-search.mts";
 
 test("searchYouTube calls the YouTube API and caches the result", async () => {
   const fetchCalls: string[] = [];
