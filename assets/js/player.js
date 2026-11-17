@@ -3339,65 +3339,6 @@ function updateUpcomingTrackUI() {
             }
         }
 
-        // Iniciar reprodução com Crossfade suave quando já houver música tocando
-        function startPlaybackFromLibrary(categoryName, index) {
-            const queue = DATA[categoryName] || [];
-            if (index < 0 || index >= queue.length) return;
-            
-            nowPlayingQueue = queue;
-            nowPlayingCategoryName = categoryName;
-            nowPlayingIndex = index;
-            const nextTrack = queue[index];
-
-            initWebAudio();
-            if (audioCtx && audioCtx.state === "suspended") {
-                audioCtx.resume();
-            }
-
-            const activeP = getActivePlayer();
-            const isCurrentlyPlaying = (engineMode === "audio" && audioDeckA && !audioDeckA.paused) || 
-                (engineMode === "video" && activeP && typeof activeP.getPlayerState === "function" && 
-                 (activeP.getPlayerState() === YT.PlayerState.PLAYING || activeP.getPlayerState() === YT.PlayerState.BUFFERING));
-
-            if (isCurrentlyPlaying && crossfadeSeconds > 0 && nowPlayingTrack && nowPlayingTrack.video_id !== nextTrack.video_id) {
-                triggerCrossfade(nextTrack);
-            } else {
-                playTrackInstant(nextTrack);
-            }
-            renderAllActiveLists();
-        }
-
-        // Faixa customizada (Sugestões ou Fila) com Crossfade suave
-        function playCustomTrack(videoId, title, artist, category, source) {
-            const customTrack = {
-                video_id: videoId,
-                title: title,
-                artist: artist,
-                category: category || "Personalizada",
-                source: source || "Geral"
-            };
-            nowPlayingQueue = [customTrack];
-            nowPlayingIndex = 0;
-            nowPlayingCategoryName = category || "Personalizada";
-
-            initWebAudio();
-            if (audioCtx && audioCtx.state === "suspended") {
-                audioCtx.resume();
-            }
-
-            const activeP = getActivePlayer();
-            const isCurrentlyPlaying = (engineMode === "audio" && audioDeckA && !audioDeckA.paused) || 
-                (engineMode === "video" && activeP && typeof activeP.getPlayerState === "function" && 
-                 (activeP.getPlayerState() === YT.PlayerState.PLAYING || activeP.getPlayerState() === YT.PlayerState.BUFFERING));
-
-            if (isCurrentlyPlaying && crossfadeSeconds > 0 && nowPlayingTrack && nowPlayingTrack.video_id !== customTrack.video_id) {
-                triggerCrossfade(customTrack);
-            } else {
-                playTrackInstant(customTrack);
-            }
-            renderAllActiveLists();
-        }
-
         // Retorna o player ativo e o standby
         function getActivePlayer() {
             return activeDeck === "A" ? playerA : playerB;
@@ -6934,10 +6875,6 @@ function triggerCrossfade(nextTrack) {
 
         function removeAccents(str) {
             return (str || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
-        }
-
-        function escapeHtml(str) {
-            return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
         }
 
         function executeLibrarySearch(query) {
