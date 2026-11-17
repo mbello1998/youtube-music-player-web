@@ -6791,3 +6791,8 @@ input:checked + .slider-toggle:before {
     min-height: 254px !important;
     transition: height 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
+
+/* Hosted build: audio-engine mode is local-only, hide the toggle */
+#barEngineModeBtn {
+    display: none !important;
+}
