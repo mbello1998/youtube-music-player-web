@@ -14,6 +14,8 @@ import {
   getPersonalLibrary,
   buildWatchVideosUrl,
   createInterceptedFetch,
+  mergePersonalLibraryIntoData,
+  lockEngineModeToVideo,
 } from "./local-state-api.js";
 
 function fakeStorage() {
@@ -272,4 +274,38 @@ test("/api/search still returns library matches when the YouTube search is quota
 test("getQueue falls back to an empty list when storage.getItem throws", () => {
   const storage = { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } };
   assert.deepEqual(getQueue(storage), []);
+});
+
+// --- DATA merge and engine-mode lockdown ---
+
+test("mergePersonalLibraryIntoData adds personal tracks without duplicating on a second call", () => {
+  const storage = fakeStorage();
+  addToLibrary(storage, {}, { video_id: "v1", title: "T", artist: "", category: "Samba & Pagode" });
+  const DATA = { "Samba & Pagode": [{ video_id: "existing" }] };
+  mergePersonalLibraryIntoData(DATA, storage);
+  mergePersonalLibraryIntoData(DATA, storage); // second call, same storage
+  assert.equal(DATA["Samba & Pagode"].filter((t) => t.video_id === "v1").length, 1);
+  assert.equal(DATA["Samba & Pagode"].some((t) => t.video_id === "existing"), true);
+});
+
+test("mergePersonalLibraryIntoData creates the category array if DATA doesn't have it yet", () => {
+  const storage = fakeStorage();
+  addToLibrary(storage, {}, { video_id: "v1", title: "T", artist: "", category: "Trap & Rap Nacional" });
+  const DATA = {};
+  mergePersonalLibraryIntoData(DATA, storage);
+  assert.equal(DATA["Trap & Rap Nacional"].length, 1);
+});
+
+test("mergePersonalLibraryIntoData on a first-time visitor (empty storage) leaves DATA untouched and does not throw", () => {
+  const storage = fakeStorage();
+  const DATA = { Outros: [{ video_id: "existing" }] };
+  mergePersonalLibraryIntoData(DATA, storage);
+  assert.deepEqual(DATA, { Outros: [{ video_id: "existing" }] });
+});
+
+test("lockEngineModeToVideo always sets the stored preference to video", () => {
+  const storage = fakeStorage();
+  storage.setItem("pref_engine_mode", "audio");
+  lockEngineModeToVideo(storage);
+  assert.equal(storage.getItem("pref_engine_mode"), "video");
 });

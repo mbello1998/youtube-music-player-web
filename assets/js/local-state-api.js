@@ -327,20 +327,42 @@ export function createInterceptedFetch({ originalFetch, storage, getLibraryData,
   };
 }
 
+export function mergePersonalLibraryIntoData(DATA, storage) {
+  const personal = getPersonalLibrary(storage);
+  for (const entry of personal) {
+    if (!DATA[entry.category]) DATA[entry.category] = [];
+    if (!DATA[entry.category].some((t) => t.video_id === entry.video_id)) {
+      DATA[entry.category].unshift(entry);
+    }
+  }
+}
+
+export function lockEngineModeToVideo(storage) {
+  // Raw string, not JSON — player.js reads this key directly as plain text
+  // (`localStorage.getItem("pref_engine_mode") || "audio"`), not via JSON.parse.
+  try {
+    storage.setItem("pref_engine_mode", "video");
+  } catch {
+    // storage unavailable — nothing to lock, player.js's own default is "audio"
+    // but the CSS hides the toggle regardless (Task 8)
+  }
+}
+
 async function fetchYouTubeSearch(query, limit) {
   const res = await fetch(`/api/youtube-search?q=${encodeURIComponent(query)}&limit=${limit}`);
   return res.json();
 }
 
-export default {
-  installOnWindow() {
-    if (typeof window === "undefined") return;
-    const intercepted = createInterceptedFetch({
-      originalFetch: window.fetch.bind(window),
-      storage: window.localStorage,
-      getLibraryData: () => window.DATA || {},
-      searchFnForYoutube: fetchYouTubeSearch,
-    });
-    window.fetch = intercepted;
-  },
-};
+// Bootstrap: runs automatically when this module is loaded in a browser.
+// Must execute before player.js's own top-level `const DATA = window.DATA || {}`
+// (player.js:3) — the script tag order in player.html (Task 8) guarantees that.
+if (typeof window !== "undefined") {
+  lockEngineModeToVideo(window.localStorage);
+  mergePersonalLibraryIntoData(window.DATA || (window.DATA = {}), window.localStorage);
+  window.fetch = createInterceptedFetch({
+    originalFetch: window.fetch.bind(window),
+    storage: window.localStorage,
+    getLibraryData: () => window.DATA || {},
+    searchFnForYoutube: fetchYouTubeSearch,
+  });
+}
