@@ -1,0 +1,1907 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Central de Músicas - Web Audio HD & Crossfade Spotify</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎧</text></svg>">
+    <link rel="stylesheet" href="/assets/css/player.css?v=20261117_03">
+</head>
+<body>
+    <!-- Cabeçalho Superior Fixo -->
+    <div class="top-header-area">
+        <div class="header-main-row">
+            <div class="header-brand">
+                <h1>Central de Músicas</h1>
+                <p>Web Audio HD • Equalizador Spotify • Super Volume VLC (200%)</p>
+            </div>
+            <!-- Navegação Principal com 5 Abas -->
+            <div class="top-nav">
+                <button class="nav-btn active" id="navLibrary" onclick="switchView('library')">
+                    <span id="navLibraryText">📚 Minha Biblioteca (__LIBRARY_COUNT__)</span>
+                </button>
+                <button class="nav-btn" id="navSpotify" onclick="switchView('spotify')" title="Playlists Oficiais do Spotify Brasil & Mundo">
+                    <span>🟢 Playlists Spotify</span>
+                    <span class="spotify-badge-pill" id="spotifyBadgePill">__SPOTIFY_COUNT__</span>
+                </button>
+                <button class="nav-btn" id="navSearch" onclick="switchView('search')">
+                    <span>🔍 Pesquisa Livre</span>
+                </button>
+                <button class="nav-btn" id="navSuggestions" onclick="switchView('suggestions')">
+                    <span>✨ Músicas Sugeridas (IA)</span>
+                </button>
+                <button class="nav-btn" id="navQueue" onclick="switchView('queue')">
+                    <span>📋 Minha Fila</span>
+                    <span class="queue-badge" id="queueBadgeCount">0</span>
+                </button>
+                <button class="nav-btn" id="navHistory" onclick="openHistoryModal()" title="Histórico de reprodução e músicas descobertas (salve na sua biblioteca)">
+                    <span>📜 Histórico</span>
+                    <span class="queue-badge" id="historyBadgeCount" style="background: rgba(0, 242, 254, 0.25); color: var(--accent);">0</span>
+                </button>
+            </div>
+            <!-- BOTÃO SINCRONIZAR COM O YOUTUBE NO CABEÇALHO (ZERO OBSTRUÇÃO DE CARDS) -->
+            <button class="floating-sync-btn" id="floatingSyncBtn" onclick="triggerYouTubeSync()" title="Sincronizar sua playlist do YouTube com um clique">
+                <span class="sync-icon">🔄</span>
+                <span id="syncBtnText">Sincronizar com YouTube</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Layout Dividido em Duas Colunas: Player Fixo e Lista de Músicas -->
+    <div class="main-container">
+        <!-- Player Fixo à Esquerda (SEM COMANDOS DUPLICADOS, ZERO ROLAGEM, TOTALMENTE FIXO) -->
+        <div class="player-pane">
+            <div class="player-wrapper">
+                
+                <!-- Wrapper com Efeito de Espectro Ambiente Atrás do Vídeo (Ambilight) -->
+                <div class="video-frame-wrap" id="videoFrameWrap">
+                    <canvas id="videoAmbientGlow" class="video-ambient-glow-canvas" width="400" height="200"></canvas>
+                    
+                    <!-- Decks de Vídeo & Tela Visualizador de Áudio HD -->
+                    <div class="video-container" id="videoContainer">
+                        <!-- YouTube Iframe Decks -->
+                        <div id="deckA" class="deck-player"></div>
+                        <div id="deckB" class="deck-player"></div>
+
+                        <!-- Overlay de Waveform Preciso sobre o Vídeo do YouTube -->
+                        <canvas id="ytWaveOverlay" class="yt-wave-overlay" width="360" height="48"></canvas>
+
+                        <!-- Visualizador HD de Áudio (Ativo no Modo Áudio ou quando vídeo bloqueado) -->
+                        <div id="visualizerScreen" class="visualizer-screen">
+                            <div class="vis-bg-blur" id="visBgBlur"></div>
+                            <div class="vis-mode-tag" id="visModeTag" onclick="cycleVlcBoost()" title="Clique para alternar o volume VLC" style="cursor: pointer;">
+                                <span class="dot"></span>
+                                <span id="visTagText">ÁUDIO HD • 100%</span>
+                            </div>
+                            <div class="vis-content">
+                                <canvas id="meteorShowerCanvas" class="meteor-shower-canvas" width="400" height="200"></canvas>
+                                <div class="vis-art-wrapper">
+                                    <img id="visAlbumArt" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' rx='16' fill='%23121524'/%3E%3Ccircle cx='60' cy='60' r='42' fill='%230a0c14' stroke='%2300f2fe' stroke-width='2' stroke-opacity='0.4'/%3E%3Ccircle cx='60' cy='60' r='28' fill='%23151928' stroke='%23ff0055' stroke-width='1.5' stroke-opacity='0.4'/%3E%3Ccircle cx='60' cy='60' r='14' fill='%2300f2fe' opacity='0.8'/%3E%3Ccircle cx='60' cy='60' r='4' fill='%23000'/%3E%3C/svg%3E" class="vis-art-img pulse" alt="Capa da Faixa" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'120\' height=\'120\' viewBox=\'0 0 120 120\'%3E%3Crect width=\'120\' height=\'120\' rx=\'16\' fill=\'%23121524\'/%3E%3Ccircle cx=\'60\' cy=\'60\' r=\'42\' fill=\'%230a0c14\' stroke=\'%2300f2fe\' stroke-width=\'2\' stroke-opacity=\'0.4\'/%3E%3Ccircle cx=\'60\' cy=\'60\' r=\'28\' fill=\'%23151928\' stroke=\'%23ff0055\' stroke-width=\'1.5\' stroke-opacity=\'0.4\'/%3E%3Ccircle cx=\'60\' cy=\'60\' r=\'14\' fill=\'%2300f2fe\' opacity=\'0.8\'/%3E%3Ccircle cx=\'60\' cy=\'60\' r=\'4\' fill=\'%23000\'/%3E%3C/svg%3E'">
+                                </div>
+                                <canvas id="visCanvas" class="vis-canvas" width="360" height="48"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Indicador de Crossfade Flutuante (Overlay dentro do Container de Vídeo) -->
+                        <div id="crossfadeIndicator" class="crossfade-indicator">
+                            🎚️ Fazendo Crossfade suave para a próxima música...
+                        </div>
+
+                        <!-- HUD DINÂMICO DE TRANSIÇÃO DJ: CROSSOVER 3-BANDAS & EFEITOS AO VIVO -->
+                        <!-- HUD DE ANÁLISE DE ONDA & CORTE INTELIGENTE NO DROP (MODO DROP HUNTER) -->
+                        <div id="djDropHunterHud" class="dj-drop-hunter-hud" style="display: none;">
+                            <div class="dj-drop-glass-panel">
+                                <!-- Linha 1: Título e Status Pill (Apenas 2 elementos, nunca quebra em 4 linhas) -->
+                                <div class="drop-hud-top-bar">
+                                    <div class="drop-hud-title-wrap">
+                                        <span class="hud-strobe-dot drop-dot"></span>
+                                        <span class="drop-hud-title">⚡ DROP HUNTER</span>
+                                    </div>
+                                    <div class="drop-hud-status-wrap">
+                                        <span id="dropStatusPill" class="drop-status-pill analyzing">🔍 Analisando...</span>
+                                    </div>
+                                </div>
+
+                                <!-- Linha 2: Botões de Ação de DJ bem distribuídos -->
+                                <div class="drop-hud-actions-row">
+                                    <button class="btn-drop-action" id="btnSkipToDrop" onclick="smartSkipToDrop()" title="Pular introdução lenta e ir direto para o Drop da música atual">⚡ Pular pro Drop</button>
+                                    <button class="btn-drop-action cut-next" id="btnCutToNextDrop" onclick="smartCutToNextDrop()" title="Corte Inteligente: corta agora para o Drop da próxima música">✂️ Cortar no Drop</button>
+                                    <button class="btn-drop-action auto-toggle active" id="btnAutoDropToggle" onclick="toggleAutoDropMode()" title="Ativar/Desativar modo automático">🤖 Auto: ON</button>
+                                </div>
+
+                                <!-- Botão Especial para Mixes Longos (Aparece apenas quando mix > 5 min) -->
+                                <button class="btn-drop-action mix-jump" id="btnMixJump" onclick="smartMixSegmentJump()" style="display: none; width: 100%; justify-content: center;" title="Pular para o próximo refrão dentro deste mix longo">🔀 Próximo Refrão do Mix (+75s)</button>
+
+                                <!-- Linha 3: Medidores com Tipografia Clara e Legível -->
+                                <div class="drop-meters-container">
+                                    <div class="drop-meter-row">
+                                        <div class="drop-meter-label-wrap">
+                                            <span class="drop-freq-name"><span class="drop-freq-dot">●</span> ENERGIA ACÚSTICA (GRAVES)</span>
+                                            <span id="dropEnergyVal" class="drop-meter-val">0%</span>
+                                        </div>
+                                        <div class="drop-meter-track">
+                                            <div id="dropEnergyFill" class="drop-meter-fill" style="width: 0%;"></div>
+                                            <div class="drop-threshold-line" style="left: 60%;" title="Limiar de Drop (60%)"></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="drop-meter-row">
+                                        <div class="drop-meter-label-wrap">
+                                            <div style="display: flex; align-items: center; gap: 6px;">
+                                                <span class="drop-freq-name"><span class="drop-freq-dot timer-dot">●</span> JANELA DO REFRÃO</span>
+                                                <div class="drop-window-adjust-btns" style="display: inline-flex; gap: 3px; align-items: center;">
+                                                    <button type="button" class="btn-drop-win-adjust" id="btnDropWinMinus" onclick="adjustDropWindow(-10)" title="Diminuir refrão em 10 segundos">➖ 10s</button>
+                                                    <button type="button" class="btn-drop-win-adjust" id="btnDropWinPlus" onclick="adjustDropWindow(+10)" title="Aumentar refrão em 10 segundos">➕ 10s</button>
+                                                </div>
+                                            </div>
+                                            <span id="dropTimerVal" class="drop-meter-val">00:00 / 01:15s</span>
+                                        </div>
+                                        <div class="drop-meter-track">
+                                            <div id="dropTimerFill" class="drop-meter-fill timer-fill" style="width: 0%;"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Linha 4: Dica e Status de Mix Longo -->
+                                <div class="drop-hud-footer">
+                                    <span id="dropHudFooterText">💡 <strong>Auto Drop DJ:</strong> Refrão Completo Protegido: Toca o refrão inteiro (75s a 95s) antes de virar para a próxima!</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="djClubCrossoverHud" class="dj-club-crossover-hud" style="display: none;">
+                            <div class="dj-hud-glass-panel">
+                                <div class="dj-hud-top-bar">
+                                    <div class="dj-hud-badge-club">
+                                        <span class="hud-strobe-dot"></span>
+                                        <span id="djHudModeTag">🔥 BALADA & CLUB DJ</span>
+                                    </div>
+                                    <div id="djHudFxBadge" class="dj-hud-fx-badge">
+                                        <span class="fx-icon">⚡</span>
+                                        <span id="djHudFxName">FX: Vinyl Brake & 808 Sub Drop</span>
+                                    </div>
+                                </div>
+
+                                <div class="dj-hud-meters-container">
+                                    <!-- 1. BAIXOS (BASS SWAP) -->
+                                    <div class="dj-hud-meter-row">
+                                        <div class="dj-meter-label-wrap">
+                                            <span class="meter-freq-dot bass-dot">●</span>
+                                            <span class="meter-freq-name">BAIXOS (BASS SWAP)</span>
+                                            <span id="djHudBassStatus" class="meter-status-val">Deck A 100% ➔ Deck B 0%</span>
+                                        </div>
+                                        <div class="dj-meter-dual-track">
+                                            <div id="djBarBassA" class="meter-bar-fill bass-a" style="width: 100%;"></div>
+                                            <div id="djBarBassB" class="meter-bar-fill bass-b" style="width: 0%;"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- 2. MÉDIOS (VOCAL & HARMONIA) -->
+                                    <div class="dj-hud-meter-row">
+                                        <div class="dj-meter-label-wrap">
+                                            <span class="meter-freq-dot mid-dot">●</span>
+                                            <span class="meter-freq-name">MÉDIOS (VOZ & HARMONIA)</span>
+                                            <span id="djHudMidStatus" class="meter-status-val">Fusão Equal-Power</span>
+                                        </div>
+                                        <div class="dj-meter-dual-track">
+                                            <div id="djBarMidA" class="meter-bar-fill mid-a" style="width: 100%;"></div>
+                                            <div id="djBarMidB" class="meter-bar-fill mid-b" style="width: 0%;"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- 3. AGUDOS (RITMO & CHIMBAIS) -->
+                                    <div class="dj-hud-meter-row">
+                                        <div class="dj-meter-label-wrap">
+                                            <span class="meter-freq-dot high-dot">●</span>
+                                            <span class="meter-freq-name">AGUDOS (RITMO & AR)</span>
+                                            <span id="djHudHighStatus" class="meter-status-val">Groove Intro Antecipado</span>
+                                        </div>
+                                        <div class="dj-meter-dual-track">
+                                            <div id="djBarHighA" class="meter-bar-fill high-a" style="width: 100%;"></div>
+                                            <div id="djBarHighB" class="meter-bar-fill high-b" style="width: 0%;"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="dj-hud-footer-bar">
+                                    <span id="djHudTransitionState" class="hud-footer-text">🎚️ MIXANDO: Deck A ➔ Deck B</span>
+                                    <span id="djHudDropIndicator" class="hud-drop-badge">💥 PREPARANDO DROP</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="toastNotify" class="toast-notify"></div>
+
+                <!-- PAINEL FIXO DE SINCRONIZAÇÃO DE BPM (ABAIXO DO ÁUDIO HD / PLAYER DO YOUTUBE) -->
+                <div class="bpm-live-sync-panel" id="bpmLiveSyncPanel">
+                    <div class="bpm-live-header">
+                        <div class="bpm-live-title-wrap">
+                            <span class="bpm-live-icon pulse">⚡</span>
+                            <span class="bpm-live-title">SINCRONIZAÇÃO DE RITMO</span>
+                        </div>
+                        <div class="bpm-live-header-actions">
+                            <span class="bpm-live-status-pill" id="bpmLiveStatusPill">Original (1.0x)</span>
+                            <button class="bpm-live-quick-btn" onclick="openBpmModal()" title="Abrir Ajustes Avançados de Beatmatch & Pitch">🎚️ Ajustar</button>
+                        </div>
+                    </div>
+                    
+                    <div class="bpm-live-values-row">
+                        <div class="bpm-val-group">
+                            <span class="bpm-val-label">BPM Original</span>
+                            <span class="bpm-val-num original" id="bpmLiveOriginalVal">128 BPM</span>
+                        </div>
+                        <div class="bpm-arrow-wrap" id="bpmLiveArrowWrap">
+                            <span class="bpm-arrow-icon" id="bpmLiveArrow">➔</span>
+                        </div>
+                        <div class="bpm-val-group">
+                            <span class="bpm-val-label">BPM Atual</span>
+                            <span class="bpm-val-num current" id="bpmLiveCurrentVal">128 BPM</span>
+                        </div>
+                        <div class="bpm-diff-wrap">
+                            <span class="bpm-diff-chip" id="bpmLiveDiffChip">1.0x (0%)</span>
+                        </div>
+                    </div>
+
+                    <!-- Barra de Transição / Fade Gradual do BPM em tempo real -->
+                    <div class="bpm-fade-progress-wrap" id="bpmFadeProgressWrap" style="display: none;">
+                        <div class="bpm-fade-header-sub">
+                            <span id="bpmFadeCaption">Restaurando BPM original em tempo real...</span>
+                            <span class="bpm-fade-step-num" id="bpmFadeLiveNum">132 ➔ 128 BPM</span>
+                        </div>
+                        <div class="bpm-fade-track">
+                            <div class="bpm-fade-bar" id="bpmFadeProgressBar" style="width: 100%;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detalhes da Faixa Atual -->
+                <div class="current-track-info">
+                    <div class="current-track-title" id="trackTitle">Pronto para tocar</div>
+                    <div class="current-track-artist" id="trackArtist">Selecione uma faixa para começar</div>
+                    <!-- Linha 1: Categoria / Origem + Status de Reprodução -->
+                    <div class="track-status-row">
+                        <span class="badge-source" id="trackSource">Fila Ativa</span>
+                        <span class="now-playing-pill" id="trackNowPlayingPill">Tocando</span>
+                    </div>
+                    <!-- Linha 2: Ações Rápidas do Player (Fila Spotify & Rádio de Parecidas) -->
+                    <div class="track-actions-row">
+                        <button class="btn-player-action-pill" id="btnPlayerQueueMain" onclick="openSpotifyQueueModal()" title="Abrir Gerenciador de Fila (Estilo Spotify)">
+                            📋 Fila <span class="player-queue-badge" id="playerQueueCount">0</span>
+                        </button>
+                        <button class="btn-player-action-pill" id="btnPlayerSimilar" onclick="openRadioForCurrentTrack()" title="Buscar faixas parecidas com esta música (mesmo BPM e ritmo)">
+                            📻 Faixas Parecidas
+                        </button>
+                    </div>
+                </div>
+
+                <!-- SPOTIFY DJ MIXER PANEL -->
+                <div class="spotify-dj-mixer" id="spotifyDjMixer">
+                    <div class="dj-mixer-header">
+                        <div class="dj-title">
+                            <span class="dj-pulse-dot"></span>
+                            <span>🎧 SPOTIFY DJ MIXER</span>
+                        </div>
+                        <div style="display: flex; gap: 4px; align-items: center;">
+                            <button class="dj-speed-badge" id="djSpeedBadge" onclick="cyclePlaybackSpeed()" title="Velocidade da Música (Clique para alternar: 1x, 1.25x, 1.5x, 2x, 4x, 0.5x, 0.75x)">⚡ 1.0x</button>
+                            <button class="dj-bpm-sync" id="djBpmSyncBadge" onclick="openBpmModal()" title="Abrir Sincronizador de BPM e Beatmatch" style="background: rgba(0, 242, 254, 0.12); border: 1px solid rgba(0, 242, 254, 0.35); color: var(--accent); cursor: pointer; border-radius: 4px; padding: 2px 6px; font-size: 10px; font-weight: 700;">⚡ BPM Sync</button>
+                        </div>
+                    </div>
+
+                    <!-- CAIXA COMPACTA: MODO DE ATUAÇÃO DO DJ & BLOQUEIO DE GÊNERO -->
+                    <div class="dj-act-mode-box" id="djActModeBox">
+                        <div class="dj-act-mode-row">
+                            <span class="dj-act-label">⚡ Modo de Atuação:</span>
+                            <div class="dj-act-dropdown">
+                                <button class="btn-dj-act-trigger" id="btnDjActTrigger" onclick="toggleDjActDropdown()" title="Clique para escolher o Modo de Atuação do DJ">
+                                    <span id="djActModeActiveLabel">🎯 Match Perfeito</span>
+                                    <span class="dj-dropdown-caret">▾</span>
+                                </button>
+                                <div class="dj-act-dropdown-menu" id="djActDropdownMenu" style="display: none;">
+                                    <button class="dj-act-menu-opt active" id="actOpt_match" onclick="selectDjActMode('match')">
+                                        <span class="opt-icon">🎯</span>
+                                        <div class="opt-text">
+                                            <strong>Match Perfeito</strong>
+                                            <small>BPM ideal, harmonia de ritmo e busca Spotify/YouTube</small>
+                                        </div>
+                                    </button>
+                                    <button class="dj-act-menu-opt" id="actOpt_energy" onclick="selectDjActMode('energy')">
+                                        <span class="opt-icon">⚡</span>
+                                        <div class="opt-text">
+                                            <strong>Peak Time</strong>
+                                            <small>Acelera o BPM (+2 a +8) e eleva a energia</small>
+                                        </div>
+                                    </button>
+                                    <button class="dj-act-menu-opt" id="actOpt_shuffle" onclick="selectDjActMode('shuffle')">
+                                        <span class="opt-icon">🔀</span>
+                                        <div class="opt-text">
+                                            <strong>Smart Shuffle</strong>
+                                            <small>Aleatório inteligente dentro do mesmo gênero</small>
+                                        </div>
+                                    </button>
+                                    <button class="dj-act-menu-opt" id="actOpt_smooth" onclick="selectDjActMode('smooth')">
+                                        <span class="opt-icon">🌊</span>
+                                        <div class="opt-text">
+                                            <strong>Smooth Flow</strong>
+                                            <small>Transições longas com crossfade suave de 8s</small>
+                                        </div>
+                                    </button>
+                                    <button class="dj-act-menu-opt" id="actOpt_studio" onclick="selectDjActMode('studio')">
+                                        <span class="opt-icon">🎛️</span>
+                                        <div class="opt-text">
+                                            <strong>Estúdio Pro & Mastering</strong>
+                                            <small>Reverb analógico, delay estéreo, compressor SSL e saturação</small>
+                                        </div>
+                                    </button>
+                                    <button class="dj-act-menu-opt" id="actOpt_drop" onclick="selectDjActMode('drop')">
+                                        <span class="opt-icon">⚡</span>
+                                        <div class="opt-text">
+                                            <strong>Drop Hunter & High Energy</strong>
+                                            <small>Análise de onda em tempo real: toca os drops e corta inteligente mantendo o astral no pico!</small>
+                                        </div>
+                                    </button>
+                                    <button class="dj-act-menu-opt" id="actOpt_club" onclick="selectDjActMode('club')">
+                                        <span class="opt-icon">🔥</span>
+                                        <div class="opt-text">
+                                            <strong>Balada & Club DJ</strong>
+                                            <small>Efeitos ao vivo (Vinyl Brake, HPF Sweep, Sub Drop) e crossover visual</small>
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="dj-genre-lock-chip" id="djGenreLockChip" title="O player mantém estritamente o gênero musical atual até você selecionar manualmente outra música">
+                            <span class="lock-icon">🔒</span>
+                            <span id="djGenreLockText">Gênero Bloqueado: Mega Funk & Ritmadas (Seguindo lista)</span>
+                        </div>
+                        <!-- Indicador Ativo do Modo Balada & Efeitos Especiais -->
+                        <div class="dj-studio-active-badge" id="djStudioActiveBadge" style="display: none;">
+                            <span class="hud-strobe-dot studio-dot"></span>
+                            <span>🎛️ MODO ESTÚDIO ATIVO • Mastering DSP, Reverb & Compressor Habilitados</span>
+                        </div>
+                        <div class="dj-drop-active-badge" id="djDropActiveBadge" style="display: none;">
+                            <span class="hud-strobe-dot drop-dot"></span>
+                            <span>⚡ DROP HUNTER ATIVO • Análise de Onda & Astral no Topo</span>
+                        </div>
+                        <div class="dj-club-active-badge" id="djClubActiveBadge" style="display: none;">
+                            <span class="hud-strobe-dot"></span>
+                            <span>🔥 MODO BALADA ATIVO • Efeitos Sonoros DJ & Drops habilitados</span>
+                        </div>
+                    </div>
+
+                    <!-- Dual Decks A & B -->
+                    <div class="dj-decks-container">
+                        <!-- Deck A -->
+                        <div class="dj-deck-card active-deck" id="djDeckACard">
+                            <div class="dj-deck-top">
+                                <span class="deck-tag active" id="deckATag">DECK A</span>
+                                <span class="deck-bpm" id="deckABpm">138 BPM</span>
+                            </div>
+                            <div class="dj-deck-body">
+                                <div class="dj-turntable-unit" id="turntableUnitA" title="Deck A - Auto DJ Platter">
+                                    <div class="dj-turntable-base deck-a-base">
+                                        <div class="vinyl-disc spinning" id="vinylA">
+                                            <div class="vinyl-grooves"></div>
+                                            <div class="vinyl-sheen"></div>
+                                            <div class="vinyl-cue-stripe"></div>
+                                            <div class="vinyl-center" id="vinylCenterA">
+                                                <img id="vinylCoverA" class="vinyl-cover-img" src="" alt="Deck A" style="display: none;">
+                                                <div class="vinyl-fallback-label" id="vinylFallbackA">
+                                                    <span class="vinyl-label-icon">🎧</span>
+                                                </div>
+                                                <div class="vinyl-spindle"></div>
+                                            </div>
+                                        </div>
+                                        <div class="platter-strobe-ring deck-a-strobe active-strobe" id="strobeA"></div>
+                                    </div>
+                                    <div class="dj-tonearm active" id="tonearmA">
+                                        <div class="tonearm-pivot"></div>
+                                        <div class="tonearm-arm"></div>
+                                        <div class="tonearm-head"></div>
+                                    </div>
+                                </div>
+                                <div class="dj-deck-info">
+                                    <div class="dj-deck-title" id="deckATitle">Tocando agora</div>
+                                    <div class="dj-deck-artist" id="deckAArtist">-</div>
+                                </div>
+                            </div>
+                            <div class="dj-deck-meter">
+                                <div class="meter-bar" id="meterA" style="width: 100%;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Deck B -->
+                        <div class="dj-deck-card" id="djDeckBCard">
+                            <div class="dj-deck-top">
+                                <span class="deck-tag" id="deckBTag">DECK B</span>
+                                <span class="deck-bpm" id="deckBBpm">138 BPM</span>
+                            </div>
+                            <div class="dj-deck-body">
+                                <div class="dj-turntable-unit" id="turntableUnitB" title="Deck B - Auto DJ Platter">
+                                    <div class="dj-turntable-base deck-b-base">
+                                        <div class="vinyl-disc" id="vinylB">
+                                            <div class="vinyl-grooves"></div>
+                                            <div class="vinyl-sheen"></div>
+                                            <div class="vinyl-cue-stripe"></div>
+                                            <div class="vinyl-center" id="vinylCenterB">
+                                                <img id="vinylCoverB" class="vinyl-cover-img" src="" alt="Deck B" style="display: none;">
+                                                <div class="vinyl-fallback-label" id="vinylFallbackB">
+                                                    <span class="vinyl-label-icon">🎚️</span>
+                                                </div>
+                                                <div class="vinyl-spindle"></div>
+                                            </div>
+                                        </div>
+                                        <div class="platter-strobe-ring deck-b-strobe" id="strobeB"></div>
+                                    </div>
+                                    <div class="dj-tonearm" id="tonearmB">
+                                        <div class="tonearm-pivot"></div>
+                                        <div class="tonearm-arm"></div>
+                                        <div class="tonearm-head"></div>
+                                    </div>
+                                </div>
+                                <div class="dj-deck-info">
+                                    <div class="dj-deck-title" id="deckBTitle">Próxima faixa</div>
+                                    <div class="dj-deck-artist" id="deckBArtist">-</div>
+                                </div>
+                            </div>
+                            <div class="dj-deck-meter">
+                                <div class="meter-bar" id="meterB" style="width: 0%;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Helper Visual de Próxima Música Ideal para Mixagem (Cálculo em Tempo Real) -->
+                    <div class="dj-ideal-transition-helper" id="djIdealHelper" style="display: none;" onclick="playIdealNextTrack()" title="Clique para adicionar esta faixa ideal ao topo da fila">
+                        <div class="dj-ideal-icon">🎯</div>
+                        <div class="dj-ideal-info">
+                            <div class="dj-ideal-label">PRÓXIMA FAIXA IDEAL (BEATMATCH)</div>
+                            <div class="dj-ideal-name" id="djIdealTrackName">-</div>
+                        </div>
+                        <span class="dj-ideal-match-badge" id="djIdealMatchBadge">100% Match</span>
+                    </div>
+
+                    <!-- Crossfader Slider (Barra de Troca de Decks) -->
+                    <div class="dj-crossfader-wrapper">
+                        <div class="dj-crossfader-labels">
+                            <span>DECK A</span>
+                            <span id="crossfaderBalanceText">🎚️ Barra de Troca de Decks (Crossfade: 4s)</span>
+                            <span>DECK B</span>
+                        </div>
+                        <div class="dj-fader-track" id="djFaderTrack">
+                            <div class="dj-fader-fill" id="djFaderFill" style="width: 0%;"></div>
+                            <div class="dj-fader-knob" id="djFaderKnob" style="left: 0%;"></div>
+                        </div>
+                    </div>
+
+                </div>
+                
+                <!-- Links ocultos de suporte para scripts de fundo -->
+                <div style="display: none;">
+                    <a id="btnQueue" href="#"></a>
+                    <a id="btnYt" href="#"></a>
+                    <a id="btnYtMusic" href="#"></a>
+                    <button id="btnRadioNow"></button>
+                    <button id="btnDjStemsMain"></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Painel de Listas à Direita: O ÚNICO QUE TEM SCROLLBAR -->
+        <div class="list-pane">
+            <!-- Painel de Biblioteca -->
+            <div id="paneLibrary" class="pane-view">
+                <div class="pane-fixed-header">
+                    <div class="search-bar-row">
+                        <div class="search-input-box">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="searchInput" class="search-input-field" placeholder="Buscar música, artista, ritmo ou BPM em toda biblioteca..." oninput="handleLibrarySearch(this.value)" onkeydown="if(event.key==='Enter') goToFreeSearch(this.value)">
+                            <span id="searchBadgeCount" class="search-badge"></span>
+                            <button id="btnClearSearch" class="btn-clear-search" onclick="clearLibrarySearch()" title="Limpar busca" style="display: none;">✕</button>
+                        </div>
+                        <button class="btn-search-ext-quick" onclick="goToFreeSearch(document.getElementById('searchInput').value)" title="Abrir Pesquisa Livre no YouTube com IA">
+                            ⚡ Pesquisa Livre
+                        </button>
+                    </div>
+
+                    <!-- Abas de Categorias da Biblioteca com Auto-Scroll no Hover -->
+                    <div class="tabs-nav-outer" id="tabsNavOuter">
+                        <button class="tabs-scroll-btn left" id="tabsScrollLeft" title="Rolar para a esquerda" aria-label="Rolar para a esquerda">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                        </button>
+                        <div class="tabs-wrapper" id="tabsWrapper">
+                            <div class="tabs" id="tabsContainer"></div>
+                        </div>
+                        <button class="tabs-scroll-btn right" id="tabsScrollRight" title="Rolar para a direita" aria-label="Rolar para a direita">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="track-list" id="trackList"></div>
+            </div>
+
+            <!-- NOVO: Painel de Playlists Oficiais do Spotify (Brasil e Mundo) -->
+            <div id="paneSpotify" class="pane-view" style="display: none;">
+                <div class="pane-fixed-header">
+                    <!-- Barra de Busca na Playlist do Spotify -->
+                    <div class="search-bar-row">
+                        <div class="search-input-box">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="spotifySearchInput" class="search-input-field" placeholder="Buscar nas playlists do Spotify por faixa, artista ou ritmo..." oninput="handleSpotifySearch(this.value)">
+                            <span id="spotifySearchBadgeCount" class="search-badge"></span>
+                            <button id="btnSpotifySearchClear" class="btn-clear-search" onclick="clearSpotifySearch()" title="Limpar busca" style="display: none;">✕</button>
+                        </div>
+                    </div>
+
+                    <!-- Abas de Playlists Oficiais do Spotify (IDÊNTICO À MINHA BIBLIOTECA) -->
+                    <div class="spotify-genre-filter-row" id="spotifyGenreFilterRow">
+                        <button class="sp-genre-chip active" id="spChip_all" onclick="filterSpotifyPlaylistsByGenre('all')">Todas (__SPOTIFY_COUNT_NUM__)</button>
+                        <button class="sp-genre-chip" id="spChip_top" onclick="filterSpotifyPlaylistsByGenre('top')">🇧🇷 Top Hits</button>
+                        <button class="sp-genre-chip" id="spChip_sertanejo" onclick="filterSpotifyPlaylistsByGenre('sertanejo')">🤠 Sertanejo</button>
+                        <button class="sp-genre-chip" id="spChip_funk" onclick="filterSpotifyPlaylistsByGenre('funk')">🔥 Funk & Mandelão</button>
+                        <button class="sp-genre-chip" id="spChip_rap" onclick="filterSpotifyPlaylistsByGenre('rap')">🎤 Rap & Trap</button>
+                        <button class="sp-genre-chip" id="spChip_pagode" onclick="filterSpotifyPlaylistsByGenre('pagode')">🥁 Pagode & Samba</button>
+                        <button class="sp-genre-chip" id="spChip_eletronica" onclick="filterSpotifyPlaylistsByGenre('eletronica')">⚡ Eletrônica</button>
+                        <button class="sp-genre-chip" id="spChip_latino" onclick="filterSpotifyPlaylistsByGenre('latino')">🌴 Reggaeton</button>
+                        <button class="sp-genre-chip" id="spChip_cumbia" onclick="filterSpotifyPlaylistsByGenre('cumbia')">🎺 Cumbia (33)</button>
+                        <button class="sp-genre-chip" id="spChip_fiestero" onclick="filterSpotifyPlaylistsByGenre('fiestero')">🎉 Mix Fiesteros & Enganchados</button>
+                        <button class="sp-genre-chip" id="spChip_fronteira" onclick="filterSpotifyPlaylistsByGenre('fronteira')">🧉 Quaraí & Artigas (3)</button>
+                        <button class="sp-genre-chip" id="spChip_rock" onclick="filterSpotifyPlaylistsByGenre('rock')">🎸 Rock & MPB</button>
+                        <button class="sp-genre-chip" id="spChip_treino" onclick="filterSpotifyPlaylistsByGenre('treino')">🏋️ Treino & Vibe</button>
+                    </div>
+
+                    <div class="tabs-nav-outer" id="spotifyTabsNavOuter">
+                        <button class="tabs-scroll-btn left" id="spotifyTabsScrollLeft" title="Rolar para a esquerda" aria-label="Rolar para a esquerda">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                        </button>
+                        <div class="tabs-wrapper" id="spotifyTabsWrapper">
+                            <div class="tabs" id="spotifyTabsContainer"></div>
+                        </div>
+                        <button class="tabs-scroll-btn right" id="spotifyTabsScrollRight" title="Rolar para a direita" aria-label="Rolar para a direita">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </button>
+                    </div>
+
+                    <!-- Card em Destaque da Playlist Selecionada com Botões de Ação Rápida -->
+                    <div class="spotify-featured-card" id="spotifyFeaturedCard"></div>
+
+                    <!-- Banner de Transição Suave Crossfade em Tempo Real no Spotify -->
+                    <div class="search-transition-banner" id="spotifyTransitionBanner" style="display: none;">
+                        <div class="banner-cf-top-row">
+                            <span class="banner-cf-badge">🎛️ CROSSFADE ATIVO NO SPOTIFY</span>
+                            <span class="banner-cf-pct" id="spotifyTransitionPct">0%</span>
+                        </div>
+                        <div class="banner-cf-tracks-row">
+                            <span class="banner-cf-out" id="spotifyOutgoingTrackInfo">📤 SAINDO: ...</span>
+                            <span class="banner-cf-arrow">➔</span>
+                            <span class="banner-cf-in" id="spotifyIncomingTrackInfo">📥 ENTRANDO: ...</span>
+                        </div>
+                        <div class="banner-cf-progress-track">
+                            <div class="banner-cf-progress-fill" id="spotifyTransitionFill"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lista de Faixas da Playlist Selecionada -->
+                <div class="track-list" id="spotifyTrackList"></div>
+            </div>
+
+            <!-- NOVO: Painel de Pesquisa Livre (Biblioteca Completa + YouTube + Descobertas IA) -->
+            <div id="paneSearch" class="pane-view" style="display: none;">
+                <div class="pane-fixed-header">
+                    <div class="search-bar-row">
+                        <div class="search-input-box">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="freeSearchInput" class="search-input-field" placeholder="Pesquise qualquer música, artista, ritmo ou BPM no YouTube e Biblioteca..." oninput="handleFreeSearchInput(this.value)" onkeydown="if(event.key==='Enter') executeFreeSearch(this.value)">
+                            <button id="btnFreeSearchClear" class="btn-clear-search" onclick="clearFreeSearch()" title="Limpar busca" style="display: none;">✕</button>
+                        </div>
+                        <button class="btn-search-ia-action" onclick="executeFreeSearch(document.getElementById('freeSearchInput').value)">
+                            ⚡ Buscar IA
+                        </button>
+                    </div>
+                    
+                    <!-- Chips de BPM & Ritmo Rápido -->
+                    <div class="quick-bpm-chips-row">
+                        <button class="chip-bpm" onclick="quickBpmSearch('Mega Funk 135 BPM')">⚡ 135 BPM Mega Funk</button>
+                        <button class="chip-bpm" onclick="quickBpmSearch('Mandelao 130 BPM')">🔊 130 BPM Mandelão</button>
+                        <button class="chip-bpm" onclick="quickBpmSearch('Eletronica House 126 BPM')">🎛️ 126 BPM House</button>
+                        <button class="chip-bpm" onclick="quickBpmSearch('Funk 150 BPM')">🔥 150 BPM Ritmo dos Fluxos</button>
+                        <button class="chip-bpm" onclick="quickBpmSearch('Trap Brasil')">💎 Trap Brasil</button>
+                    </div>
+
+                    <div class="search-filters-bar" id="searchFiltersBar" style="display: flex;">
+                        <button class="filter-tab-btn active" id="tabFilterAll" onclick="setSearchFilter('all')">Todas (<span id="countSearchAll">0</span>)</button>
+                        <button class="filter-tab-btn" id="tabFilterLib" onclick="setSearchFilter('library')">📚 Na Biblioteca (<span id="countSearchLib">0</span>)</button>
+                        <button class="filter-tab-btn" id="tabFilterNew" onclick="setSearchFilter('new')">✨ Novidades YouTube (<span id="countSearchNew">0</span>)</button>
+                    </div>
+
+                    <!-- Banner de Transição Suave Crossfade em Tempo Real na Pesquisa -->
+                    <div class="search-transition-banner" id="searchTransitionBanner" style="display: none;">
+                        <div class="banner-cf-top-row">
+                            <span class="banner-cf-badge">🎛️ CROSSFADE ATIVO NA PESQUISA</span>
+                            <span class="banner-cf-pct" id="searchTransitionPct">0%</span>
+                        </div>
+                        <div class="banner-cf-tracks-row">
+                            <span class="banner-cf-out" id="searchOutgoingTrackInfo">📤 SAINDO: ...</span>
+                            <span class="banner-cf-arrow">➔</span>
+                            <span class="banner-cf-in" id="searchIncomingTrackInfo">📥 ENTRANDO: ...</span>
+                        </div>
+                        <div class="banner-cf-progress-track">
+                            <div class="banner-cf-progress-fill" id="searchTransitionFill"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="track-list" id="searchResultsList">
+                    <div class="search-empty-state">
+                        <div class="search-empty-icon">🔍</div>
+                        <div class="search-empty-title">Pesquisa Livre no YouTube & Biblioteca</div>
+                        <div class="search-empty-desc">Digite qualquer título, artista, ritmo ou BPM para encontrar instantaneamente na biblioteca ou descobrir novas faixas no YouTube com transição Crossfade e adição com um clique!</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Painel de Sugestões com Categorias & Busca Sem Repetição -->
+            <div id="paneSuggestions" class="pane-view" style="display: none;">
+                <div class="pane-fixed-header">
+                    <div style="margin-bottom: 5px;">
+                        <span style="font-size: 12px; font-weight: 700; color: var(--accent);">🎯 Escolha o Gênero ou ative o Rádio da Faixa:</span>
+                    </div>
+                    <div class="tabs-nav-outer" id="suggTabsNavOuter">
+                        <button class="tabs-scroll-btn left" id="suggScrollLeft" title="Rolar para a esquerda" aria-label="Rolar para a esquerda">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                        </button>
+                        <div class="tabs-wrapper" id="suggestionsTabsWrapper">
+                            <div class="tabs" id="suggestionsTabsContainer"></div>
+                        </div>
+                        <button class="tabs-scroll-btn right" id="suggScrollRight" title="Rolar para a direita" aria-label="Rolar para a direita">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </button>
+                    </div>
+
+                    <!-- Campo de Busca de Novidades com IA -->
+                    <div class="search-bar-row" style="margin-top: 6px; margin-bottom: 6px;">
+                        <div class="search-input-box">
+                            <span class="search-icon">✨</span>
+                            <input type="text" id="suggSearchInput" class="search-input-field" placeholder="Buscar novas músicas no YouTube por ritmo, artista ou BPM (ex: 135 bpm, mandelao)..." onkeydown="if(event.key==='Enter') executeCustomSuggestionSearch(this.value)">
+                        </div>
+                        <button class="btn-search-ia-action" onclick="executeCustomSuggestionSearch(document.getElementById('suggSearchInput').value)">
+                            ⚡ Buscar IA
+                        </button>
+                    </div>
+
+                    <div class="queue-header-box" style="margin-top: 8px; margin-bottom: 8px;">
+                        <div class="queue-title">
+                            <span id="suggestionActiveGenreTitle">✨ Novidades Recomendadas</span>
+                            <span id="suggestionCountBadge" class="count-badge" style="background: rgba(0, 242, 254, 0.2); color: var(--accent); padding: 3px 8px; font-size: 11px;">0 inéditas</span>
+                        </div>
+                        <div class="queue-desc" id="suggestionSubtext">
+                            Músicas buscadas em tempo real no YouTube para este estilo e ritmo. <strong>Nunca se repetem</strong>.
+                        </div>
+                        <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
+                            <button class="btn-sync-yt" id="btnRefreshSuggestions" onclick="fetchFreshSuggestionsForCurrentGenre()" style="flex: 1; margin-top: 0; background: linear-gradient(135deg, #ff0055, #ff5500); color: #fff; padding: 7px 12px; font-size: 12px;">
+                                <span>🔄 Buscar Mais Novas Músicas (Sem Repetir)</span>
+                            </button>
+                            <button class="btn-sync-yt" onclick="resetSeenHistory()" style="flex: 0; margin-top: 0; background: var(--surface); border: 1px solid var(--border); color: var(--text-dim); padding: 7px 12px; font-size: 12px;" title="Resetar histórico de faixas já vistas">
+                                <span>↺ Resetar Histórico</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="track-list" id="suggestionsList"></div>
+            </div>
+
+            <!-- Painel de Fila de Reprodução -->
+            <div id="paneQueue" class="pane-view" style="display: none;">
+                <div class="pane-fixed-header">
+                    <div class="queue-header-box">
+                        <div class="queue-title">
+                            <span>📋 Minha Fila de Reprodução</span>
+                            <span id="queueCountBadge" class="count-badge" style="background: rgba(0, 242, 254, 0.2); color: var(--accent); padding: 3px 8px;">0 músicas</span>
+                        </div>
+                        <div class="queue-desc">
+                            Músicas adicionadas por você para tocar na sequência. Você pode abri-las todas juntas como uma playlist instantânea no YouTube!
+                        </div>
+                        <div style="display: flex; gap: 10px; margin-top: 10px;">
+                            <button class="btn-sync-yt" onclick="openDirectQueueUrl()" style="flex: 1; margin-top: 0;">
+                                ▶ Assistir Fila Completa no YouTube
+                            </button>
+                            <button class="btn-sync-yt" onclick="clearAllQueue()" style="flex: 0; margin-top: 0; background: rgba(255, 0, 85, 0.2); border: 1px solid var(--primary); color: #fff; padding: 8px 14px;">
+                                🗑️ Limpar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="track-list" id="queueList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Barra Principal Inferior (ONDE ESTÁ A SELEÇÃO DA MÚSICA E TODOS OS COMANDOS) -->
+    <div class="bottom-player-bar">
+        <div class="bar-left">
+            <img id="barThumb" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='8' fill='%23121524'/%3E%3Ccircle cx='24' cy='24' r='16' fill='%230a0c14' stroke='%2300f2fe' stroke-width='1.5' stroke-opacity='0.5'/%3E%3Ccircle cx='24' cy='24' r='6' fill='%23ff0055' opacity='0.8'/%3E%3C/svg%3E" class="bar-thumb" alt="Capa" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'48\' height=\'48\' viewBox=\'0 0 48 48\'%3E%3Crect width=\'48\' height=\'48\' rx=\'8\' fill=\'%23121524\'/%3E%3Ccircle cx=\'24\' cy=\'24\' r=\'16\' fill=\'%230a0c14\' stroke=\'%2300f2fe\' stroke-width=\'1.5\' stroke-opacity=\'0.5\'/%3E%3Ccircle cx=\'24\' cy=\'24\' r=\'6\' fill=\'%23ff0055\' opacity=\'0.8\'/%3E%3C/svg%3E'">
+            <div class="bar-info">
+                <div class="bar-title" id="barTitle">Nenhuma música tocando</div>
+                <div class="bar-artist-row">
+                    <span class="bar-artist" id="barArtist">-</span>
+                    <button class="btn-bar-similar" onclick="openRadioForCurrentTrack()" title="Buscar faixas parecidas com esta música">
+                        📻 Parecidas
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="bar-center">
+            <!-- Linha 1: Transporte Principal (PERFEITAMENTE CENTRALIZADO) -->
+            <div class="bar-transport-cluster">
+                <button class="bar-pill-btn" id="barShuffleBtn" onclick="toggleShuffle()" title="Modo Aleatório">🔀</button>
+                <button class="bar-btn bar-nav-btn" onclick="manualTransition('prev')" title="Anterior">⏮</button>
+                <button class="bar-btn bar-play" id="barPlayBtn" onclick="togglePlayPause()" title="Play/Pause">
+                    <span id="playIconSpan">
+                        <svg class="control-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="display:block; transform: translateX(1px);">
+                            <polygon points="7.5,4.5 19.5,12 7.5,19.5"></polygon>
+                        </svg>
+                    </span>
+                </button>
+                <button class="bar-btn bar-nav-btn" onclick="manualTransition('next')" title="Próxima com Fade">⏭</button>
+                <button class="bar-pill-btn active" id="barAutoPlayBtn" onclick="toggleAutoPlay()" title="Avanço Automático">🔁 Auto</button>
+                <button class="bar-pill-btn" id="barRepeatBtn" onclick="toggleRepeatMode()" title="Modo de Repetição (Desativado / Repetir Música Atual (1) / Repetir Playlist)">🔂 Repetir</button>
+            </div>
+
+            <!-- Linha 2: Timeline Scrubber (Centralizado) -->
+            <div class="progress-bar-container">
+                <span class="time-label" id="timeCurrent">0:00</span>
+                <div class="progress-track" id="progressTrack" onclick="handleSeekClick(event)" title="Clique para avançar/voltar nesta parte da música">
+                    <div class="progress-fill" id="progressFill"></div>
+                    <div class="progress-scrubber" id="progressScrubber"></div>
+                </div>
+                <span class="time-label" id="timeDuration">0:00</span>
+            </div>
+
+            <!-- Linha 3: Ferramentas DJ e Efeitos (Alinhadas e Compactas) -->
+            <div class="bar-tools-cluster">
+                <button class="bar-pill-btn fade-active" id="barCrossfadeBtn" onclick="toggleCrossfadeSetting()" title="Ajustar tempo de crossfade">🎚️ Fade: 4s</button>
+                <button class="bar-pill-btn bpm-sync-active" id="barBpmSyncBtn" onclick="openBpmModal()" title="Sincronizador de BPM & Beatmatch Automático">⚡ BPM Sync</button>
+                <button class="bar-pill-btn active" id="barIntroSkipBtn" onclick="toggleIntroSkip()" title="Pular silêncio/intro inicial">⚡ Silêncio: 2s</button>
+                <button class="bar-pill-btn eq-active" id="barEqBtn" onclick="openEqualizerModal()" title="Equalizador Spotify e Super Volume VLC">🎛️ EQ: <span id="barEqLabel">Grave</span></button>
+                <button class="bar-pill-btn stems-active" id="barStemsBtn" onclick="openStemsModal()" title="Stems DJ">🎧 Stems DJ</button>
+                <button class="bar-pill-btn studio-active" id="barStudioBtn" onclick="openStudioModal()" title="Console de Estúdio, Mastering DSP e Efeitos">🎚️ Estúdio Pro</button>
+                <button class="bar-pill-btn" id="barQueueBtn" onclick="openSpotifyQueueModal()" title="Gerenciar Fila de Músicas (Estilo Spotify)">📋 Fila <span id="barQueueCountBadge" class="bar-queue-chip">0</span></button>
+                <button class="bar-pill-btn" id="barControlSimilarBtn" onclick="openRadioForCurrentTrack()" title="Buscar faixas parecidas">📻 Parecidas</button>
+                
+                <!-- Controle de Velocidade -->
+                <div class="speed-control-wrapper">
+                    <button class="bar-pill-btn speed-pill-btn" id="barSpeedBtn" onclick="toggleSpeedMenu(event)" title="Velocidade da Música">
+                        <span id="barSpeedLabel">⚡ 1.0x</span>
+                    </button>
+                    <div class="speed-menu-dropdown" id="speedMenuDropdown">
+                        <div class="speed-menu-header">Velocidade da Música</div>
+                        <div class="speed-options-grid">
+                            <button class="speed-opt-btn" data-speed="0.5" onclick="setPlaybackSpeed(0.5)">🐢 0.5x Slow</button>
+                            <button class="speed-opt-btn" data-speed="0.75" onclick="setPlaybackSpeed(0.75)">🐢 0.75x Slow</button>
+                            <button class="speed-opt-btn active" data-speed="1.0" id="speedOpt1" onclick="setPlaybackSpeed(1.0)">🎵 1.0x Normal</button>
+                            <button class="speed-opt-btn" data-speed="1.25" onclick="setPlaybackSpeed(1.25)">⚡ 1.25x</button>
+                            <button class="speed-opt-btn" data-speed="1.5" onclick="setPlaybackSpeed(1.5)">⚡ 1.5x</button>
+                            <button class="speed-opt-btn" data-speed="2.0" onclick="setPlaybackSpeed(2.0)">🚀 2.0x Rápido</button>
+                            <button class="speed-opt-btn" data-speed="4.0" onclick="setPlaybackSpeed(4.0)">🔥 4.0x Ultra</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Toggle de Áudio HD vs Clipe -->
+                <button class="bar-pill-btn" id="barEngineModeBtn" onclick="toggleEngineMode()" title="Alternar entre Áudio HD e Clipe">🎵 Áudio HD</button>
+            </div>
+
+            <!-- Linha de Status com a Música Tocando e a Próxima -->
+            <div class="bar-status-text" id="barStatusText">
+                Pronto para reproduzir • Escolha uma música
+            </div>
+        </div>
+
+        <div class="bar-right">
+            <button class="bar-btn" id="barMuteBtn" onclick="toggleMute()" title="Mute/Unmute">🔊</button>
+            <input type="range" min="0" max="200" value="100" id="volumeSlider" class="volume-slider" oninput="setMasterVolume(this.value)" onchange="setMasterVolume(this.value)" title="Volume VLC (0% a 200%)">
+            <span class="vol-text" id="volText">100%</span>
+            <button class="vlc-chip-btn" onclick="cycleVlcBoost()" title="Alternar presets VLC (100%, 125%, 150%, 200%)">⚡ VLC</button>
+        </div>
+    </div>
+
+    <!-- MODAL DO EQUALIZADOR SPOTIFY PRO & SUPER VOLUME VLC -->
+    <div class="eq-modal-overlay" id="equalizerModal" onclick="closeEqualizerModal(event)">
+        <div class="eq-modal-card eq-modal-pro" onclick="event.stopPropagation()">
+            <div class="eq-modal-header">
+                <div>
+                    <div class="eq-modal-title">
+                        <span>🎛️ Equalizador Spotify Pro & Super Volume VLC</span>
+                        <span class="eq-badge-mode">10 BANDAS ISO</span>
+                    </div>
+                    <div class="eq-modal-sub">
+                        Filtro acústico cirúrgico em tempo real, curva espectral e amplificação até 200% sem distorção.
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <button class="btn-eq-reset" onclick="resetEqToFlat()" title="Redefinir todas as bandas para 0 dB (Flat)">
+                        🔄 Flat (0 dB)
+                    </button>
+                    <button class="eq-close-btn" onclick="closeEqualizerModal()" title="Fechar Equalizador" aria-label="Fechar">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Visualização da Curva de Equalização em Tempo Real -->
+            <div class="eq-curve-container">
+                <div class="eq-curve-header">
+                    <span class="eq-curve-title">📈 Curva de Resposta Acústica (Tempo Real)</span>
+                    <span id="eqActivePresetTag" class="eq-curve-tag">Preset: Padrão (Flat)</span>
+                </div>
+                <canvas id="eqCurveCanvas" width="680" height="60" class="eq-curve-canvas"></canvas>
+            </div>
+
+            <!-- Presets Acústicos Inteligentes (14 Modos Especializados) -->
+            <div class="eq-section-header">
+                <span class="eq-section-title">Presets Acústicos Especializados (14 Modos)</span>
+                <span class="eq-section-hint">Clique para aplicar instantaneamente</span>
+            </div>
+            <div class="eq-presets-grid-scroll">
+                <div class="eq-preset-card" id="eqCard_padrao" onclick="selectEqPreset('padrao')">
+                    <span class="eq-preset-icon">🎵</span>
+                    <div class="eq-preset-info">
+                        <span class="eq-preset-name">Padrão (Flat)</span>
+                        <span class="eq-preset-desc">Original de estúdio</span>
+                    </div>
+                </div>
+                <div class="eq-preset-card" id="eqCard_grave" onclick="selectEqPreset('grave')">
+                    <span class="eq-preset-icon">💥</span>
+                    <div class="eq-preset-info">
+                        <span class="eq-preset-name">Mega Bass / 808</span>
+                        <span class="eq-preset-desc">Subwoofer & batidas</span>
+                    </div>
+                </div>
+                <div class="eq-preset-card" id="eqCard_funk" onclick="selectEqPreset('funk')">
+                    <span class="eq-preset-icon">🔥</span>
+                    <div class="eq-preset-info">
+                        <span class="eq-preset-name">Funk & Mandelão</span>
+                        <span class="eq-preset-desc">Punch no kick & caixa</span>
+                    </div>
+                </div>
+                <div class="eq-preset-card" id="eqCard_balada" onclick="selectEqPreset('balada')">
+                    <span class="eq-preset-icon">⚡</span>
+                    <div class="eq-preset-info">
+                        <span class="eq-preset-name">Balada / Club</span>
+                        <span class="eq-preset-desc">Curva em V com pressão</span>
+                    </div>
+                </div>
+                <div class="eq-preset-card" id="eqCard_eletronica" onclick="selectEqPreset('eletronica')">
+                    <span class="eq-preset-icon">🌀</span>
+                    <div class="eq-preset-info">
+                        <span class="eq-preset-name">House & Desande</span>
+                        <span class="eq-preset-desc">Sub firme & agudo limpo</span>
+                    </div>
+                </div>
+                <div class="eq-preset-card" id="eqCard_cumbia" onclick="selectEqPreset('cumbia')">
+                    <span class="eq-preset-icon">🎺</span>
+                    <div class="eq-preset-info">
+                        <span class="eq-preset-name">Cumbia & Charanga</span>
+                        <span class="eq-preset-desc">Médios quentes & chimbais</span>
+                    </div>
+                </div>
+                <div class="eq-preset-card" id="eqCard_gaucho" onclick="selectEqPreset('gaucho')">
+                    <span class="eq-preset-icon">🤠</span>
+                    <div class="eq-preset-info">
+                        <span class="eq-preset-name">Gaúcho & Vanera</span>
+                        <span class="eq-preset-desc">Bombo & acordeom brilhante</span>
+                    </div>
+                </div>
+                <div class="eq-preset-card" id="eqCard_trap" onclick="selectEqPreset('trap')">
+                    <span class="eq-preset-icon">🎤</span>
+                    <div class="eq-preset-info">
+                        <span class="eq-preset-name">Trap & 808 Slide</span>
+                        <span class="eq-preset-desc">Subwoofer & voz seca</span>
+                    </div>
+                </div>
+                <div class="eq-preset-card" id="eqCard_voz" onclick="selectEqPreset('voz')">
+                    <span class="eq-preset-icon">🎙️</span>
+                    <div class="eq-preset-info">
+                        <span class="eq-preset-name">Vocal Cristalino</span>
+                        <span class="eq-preset-desc">Voz em destaque & clareza</span>
+                    </div>
+                </div>
+                <div class="eq-preset-card" id="eqCard_fone" onclick="selectEqPreset('fone')">
+                    <span class="eq-preset-icon">🎧</span>
+                    <div class="eq-preset-info">
+                        <span class="eq-preset-name">Fone de Ouvido</span>
+                        <span class="eq-preset-desc">Curva Harman estéreo</span>
+                    </div>
+                </div>
+                <div class="eq-preset-card" id="eqCard_sala" onclick="selectEqPreset('sala')">
+                    <span class="eq-preset-icon">🏛️</span>
+                    <div class="eq-preset-info">
+                        <span class="eq-preset-name">Sala / Espacial</span>
+                        <span class="eq-preset-desc">Palco sonoro amplo</span>
+                    </div>
+                </div>
+                <div class="eq-preset-card" id="eqCard_rock" onclick="selectEqPreset('rock')">
+                    <span class="eq-preset-icon">🎸</span>
+                    <div class="eq-preset-info">
+                        <span class="eq-preset-name">Rock & Guitarras</span>
+                        <span class="eq-preset-desc">Médios para cordas & ataque</span>
+                    </div>
+                </div>
+                <div class="eq-preset-card" id="eqCard_acustico" onclick="selectEqPreset('acustico')">
+                    <span class="eq-preset-icon">🪕</span>
+                    <div class="eq-preset-info">
+                        <span class="eq-preset-name">Acústico & Cordas</span>
+                        <span class="eq-preset-desc">Timbre quente natural</span>
+                    </div>
+                </div>
+                <div class="eq-preset-card" id="eqCard_claridade" onclick="selectEqPreset('claridade')">
+                    <span class="eq-preset-icon">✨</span>
+                    <div class="eq-preset-info">
+                        <span class="eq-preset-name">Máxima Definição</span>
+                        <span class="eq-preset-desc">Air & agudos estendidos</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Equalizador Gráfico de 10 Bandas -->
+            <div class="eq-section-header">
+                <span class="eq-section-title">Equalizador Gráfico de Precisão (10 Bandas ISO)</span>
+                <div class="eq-preamp-wrap">
+                    <span class="preamp-label">🎚️ Pre-Amp:</span>
+                    <input type="range" min="-6" max="6" value="0" step="0.5" id="eqPreAmpSlider" class="preamp-slider" oninput="setEqPreAmp(this.value)">
+                    <span id="eqPreAmpVal" class="preamp-val">0 dB</span>
+                </div>
+            </div>
+            <div class="eq-bars-row-10">
+                <div class="eq-bar-col">
+                    <span class="eq-val-label" id="eqVal_32">0 dB</span>
+                    <input type="range" min="-12" max="12" value="0" class="eq-slider-vertical" id="eqSlider_32" oninput="onCustomEqChange(0, this.value)">
+                    <div class="eq-freq-label">32 Hz<br><span>Sub-Bass</span></div>
+                </div>
+                <div class="eq-bar-col">
+                    <span class="eq-val-label" id="eqVal_64">0 dB</span>
+                    <input type="range" min="-12" max="12" value="0" class="eq-slider-vertical" id="eqSlider_64" oninput="onCustomEqChange(1, this.value)">
+                    <div class="eq-freq-label">64 Hz<br><span>Sub-Grave</span></div>
+                </div>
+                <div class="eq-bar-col">
+                    <span class="eq-val-label" id="eqVal_125">0 dB</span>
+                    <input type="range" min="-12" max="12" value="0" class="eq-slider-vertical" id="eqSlider_125" oninput="onCustomEqChange(2, this.value)">
+                    <div class="eq-freq-label">125 Hz<br><span>Grave</span></div>
+                </div>
+                <div class="eq-bar-col">
+                    <span class="eq-val-label" id="eqVal_250">0 dB</span>
+                    <input type="range" min="-12" max="12" value="0" class="eq-slider-vertical" id="eqSlider_250" oninput="onCustomEqChange(3, this.value)">
+                    <div class="eq-freq-label">250 Hz<br><span>Médio-Grave</span></div>
+                </div>
+                <div class="eq-bar-col">
+                    <span class="eq-val-label" id="eqVal_500">0 dB</span>
+                    <input type="range" min="-12" max="12" value="0" class="eq-slider-vertical" id="eqSlider_500" oninput="onCustomEqChange(4, this.value)">
+                    <div class="eq-freq-label">500 Hz<br><span>Médios</span></div>
+                </div>
+                <div class="eq-bar-col">
+                    <span class="eq-val-label" id="eqVal_1000">0 dB</span>
+                    <input type="range" min="-12" max="12" value="0" class="eq-slider-vertical" id="eqSlider_1000" oninput="onCustomEqChange(5, this.value)">
+                    <div class="eq-freq-label">1 kHz<br><span>Vocal</span></div>
+                </div>
+                <div class="eq-bar-col">
+                    <span class="eq-val-label" id="eqVal_2000">0 dB</span>
+                    <input type="range" min="-12" max="12" value="0" class="eq-slider-vertical" id="eqSlider_2000" oninput="onCustomEqChange(6, this.value)">
+                    <div class="eq-freq-label">2 kHz<br><span>Ataque</span></div>
+                </div>
+                <div class="eq-bar-col">
+                    <span class="eq-val-label" id="eqVal_4000">0 dB</span>
+                    <input type="range" min="-12" max="12" value="0" class="eq-slider-vertical" id="eqSlider_4000" oninput="onCustomEqChange(7, this.value)">
+                    <div class="eq-freq-label">4 kHz<br><span>Presença</span></div>
+                </div>
+                <div class="eq-bar-col">
+                    <span class="eq-val-label" id="eqVal_8000">0 dB</span>
+                    <input type="range" min="-12" max="12" value="0" class="eq-slider-vertical" id="eqSlider_8000" oninput="onCustomEqChange(8, this.value)">
+                    <div class="eq-freq-label">8 kHz<br><span>Brilho</span></div>
+                </div>
+                <div class="eq-bar-col">
+                    <span class="eq-val-label" id="eqVal_16000">0 dB</span>
+                    <input type="range" min="-12" max="12" value="0" class="eq-slider-vertical" id="eqSlider_16000" oninput="onCustomEqChange(9, this.value)">
+                    <div class="eq-freq-label">16 kHz<br><span>Air / Agudos</span></div>
+                </div>
+            </div>
+
+            <!-- Super Volume VLC Booster (Até 200%) -->
+            <div class="eq-boost-box">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="font-size: 11.5px; font-weight: 700; color: #ffaa00;">⚡ Super Volume VLC Booster (0% a 200%)</span>
+                    <span id="eqBoostText" style="font-size: 12px; font-weight: 800; color: #ffaa00;">100%</span>
+                </div>
+                <input type="range" min="0" max="200" value="100" id="eqVolumeSlider" class="volume-slider" style="width: 100%; max-width: none;" oninput="setMasterVolume(this.value)">
+                <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-dim); margin-top: 4px;">
+                    <span>0%</span>
+                    <span>100% (Normal)</span>
+                    <span>150% (Turbo VLC)</span>
+                    <span style="color: #ff0055; font-weight: 700;">200% (Máx VLC)</span>
+                </div>
+            </div>
+
+            <div class="eq-footer">
+                <span class="eq-badge-saved">✓ Preferências salvas automaticamente no navegador</span>
+                <button class="btn-modal-done" onclick="closeEqualizerModal()">✓ Concluído</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DJ STEMS PRO: SEPARAÇÃO E ISOLAMENTO 100% EM TEMPO REAL (VOCAL, BATIDA, BAIXO, MELODIA) -->
+    <div class="eq-modal-overlay" id="djStemsModal" onclick="closeStemsModal(event)">
+        <div class="eq-modal-card stems-modal-card" onclick="event.stopPropagation()">
+            <div class="eq-modal-header">
+                <div>
+                    <div class="eq-modal-title">
+                        <span class="stems-pulse-dot"></span>
+                        <span>🎧 DJ STEMS PRO • ISOLAMENTO E SEPARAÇÃO 100% EM TEMPO REAL</span>
+                        <span class="stems-badge-pro">PRO 4-STEM DSP</span>
+                    </div>
+                    <div class="eq-modal-sub">
+                        Separação cirúrgica de Vocal (Acapella), Batida (Beat/Percussão), Baixo (Sub 808) e Instrumental (Melodia) com isolamento 100% e zero vazamento.
+                    </div>
+                </div>
+                <button class="eq-close-btn" onclick="closeStemsModal()" title="Fechar Stems DJ" aria-label="Fechar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+            </div>
+
+            <!-- Faixa Tocando no Momento -->
+            <div class="stems-live-bar">
+                <div class="stems-live-info">
+                    <span class="stems-live-tag">● AO VIVO</span>
+                    <span id="stemsTrackNowTitle" class="stems-live-title">Carregando faixa...</span>
+                </div>
+                <div class="stems-live-right">
+                    <span id="stemsEngagedBadge" class="stems-status-pill">MIX ORIGINAL (FLAT)</span>
+                    <span id="stemsTrackNowBpm" class="badge-bpm-chip">⚡ 138 BPM</span>
+                </div>
+            </div>
+
+            <!-- Pads Rápidos de Efeito DJ (1-Clique) -->
+            <!-- Perfil Acústico Adaptativo por Ritmo (Anti-Vazamento Cirúrgico) -->
+            <div class="stems-profile-selector-bar">
+                <div class="stems-profile-header">
+                    <span class="stems-profile-label">🎯 PERFIL DE RITMO CALIBRADO (ZERO VAZAMENTO):</span>
+                    <span id="stemsProfileActiveBadge" class="stems-profile-badge">⚡ AUTO: FUNK & MANDELÃO</span>
+                </div>
+                <div class="stems-profile-chips">
+                    <button class="stem-profile-chip active" id="stProfile_auto" onclick="setStemGenreProfile('auto')" title="Detecta automaticamente o ritmo da música tocando">⚡ Auto (Gênero Atual)</button>
+                    <button class="stem-profile-chip" id="stProfile_funk" onclick="setStemGenreProfile('funk')" title="Otimizado para sub 808 pesado, batida seca e voz MC de funk">🔥 Funk & Mandelão</button>
+                    <button class="stem-profile-chip" id="stProfile_sertanejo" onclick="setStemGenreProfile('sertanejo')" title="Otimizado para 1ª e 2ª voz harmonizadas, viola e baixo acústico">🤠 Sertanejo & Modão</button>
+                    <button class="stem-profile-chip" id="stProfile_pagode" onclick="setStemGenreProfile('pagode')" title="Otimizado para roda de samba, surdo, tantã, cavaquinho e coro">🥁 Samba & Pagode</button>
+                    <button class="stem-profile-chip" id="stProfile_eletronica" onclick="setStemGenreProfile('eletronica')" title="Otimizado para kick 4x4, sub synth puro e drops EDM/House">⚡ Eletrônica & House</button>
+                    <button class="stem-profile-chip" id="stProfile_trap" onclick="setStemGenreProfile('trap')" title="Otimizado para 808 slides, autotune e hi-hat rolls rápidos">🎤 Trap & Rap</button>
+                    <button class="stem-profile-chip" id="stProfile_latino" onclick="setStemGenreProfile('latino')" title="Otimizado para dembow, güiro e cumbia">🌴 Reggaeton & Cumbia</button>
+                    <button class="stem-profile-chip" id="stProfile_rock" onclick="setStemGenreProfile('rock')" title="Otimizado para bateria acústica, baixo e guitarras">🎸 Rock & Pop</button>
+                </div>
+            </div>
+
+            <div class="eq-section-title">⚡ Ações Rápidas de DJ (Isolamento Cirúrgico em 1-Clique)</div>
+            <div class="stems-pads-grid">
+                <div class="stem-pad-btn active" id="stemPad_full" onclick="applyStemPreset('full')">
+                    <span class="stem-pad-icon">🎚️</span>
+                    <span class="stem-pad-title">Mix Original</span>
+                    <span class="stem-pad-desc">Todos Stems 100%</span>
+                </div>
+                <div class="stem-pad-btn" id="stemPad_vocal" onclick="applyStemPreset('vocal')">
+                    <span class="stem-pad-icon">🎤</span>
+                    <span class="stem-pad-title">Apenas Vocal</span>
+                    <span class="stem-pad-desc">Acapella Isolada</span>
+                </div>
+                <div class="stem-pad-btn" id="stemPad_beat" onclick="applyStemPreset('beat')">
+                    <span class="stem-pad-icon">🥁</span>
+                    <span class="stem-pad-title">Apenas Batida</span>
+                    <span class="stem-pad-desc">Beat Puro / Transientes</span>
+                </div>
+                <div class="stem-pad-btn" id="stemPad_inst" onclick="applyStemPreset('inst')">
+                    <span class="stem-pad-icon">🎸</span>
+                    <span class="stem-pad-title">Instrumental</span>
+                    <span class="stem-pad-desc">Karaoke / Vocal Kill</span>
+                </div>
+                <div class="stem-pad-btn" id="stemPad_basskill" onclick="applyStemPreset('basskill')">
+                    <span class="stem-pad-icon">⚡</span>
+                    <span class="stem-pad-title">Bass Kill</span>
+                    <span class="stem-pad-desc">Corta Grave Pré-Drop</span>
+                </div>
+                <div class="stem-pad-btn" id="stemPad_bassonly" onclick="applyStemPreset('bassonly')">
+                    <span class="stem-pad-icon">💣</span>
+                    <span class="stem-pad-title">Apenas Grave</span>
+                    <span class="stem-pad-desc">Sub 808 Solo</span>
+                </div>
+                <div class="stem-pad-btn" id="stemPad_harmonly" onclick="applyStemPreset('harmonly')">
+                    <span class="stem-pad-icon">🎹</span>
+                    <span class="stem-pad-title">Apenas Melodia</span>
+                    <span class="stem-pad-desc">Sintes & Ambiência</span>
+                </div>
+            </div>
+
+            <!-- Faders de 4 Canais (Vocal, Batida, Baixo, Instrumental) -->
+            <div class="eq-section-title">🎛️ Faders de Stems Individuais & Medidores LED Real-Time (0% a 150%)</div>
+            <div class="stems-channels-grid">
+                <!-- Canal 1: VOCAL -->
+                <div class="stem-card stem-card-vocal">
+                    <div class="stem-header">
+                        <span class="stem-icon">🎤</span>
+                        <span class="stem-name">Vocal & Acapella</span>
+                        <span class="stem-freq">Voz, MC & Refrão (Formantes 300Hz-4.5kHz)</span>
+                        <span class="stem-val" id="stemVal_vocal">100%</span>
+                    </div>
+                    <!-- VU Meter Real-Time -->
+                    <div class="stem-meter-container">
+                        <div class="stem-meter-bar">
+                            <div class="stem-meter-fill stem-meter-vocal" id="stemMeterFill_vocal" style="width: 0%;"></div>
+                        </div>
+                        <span class="stem-meter-val" id="stemMeterVal_vocal">-∞ dB</span>
+                    </div>
+                    <div class="stem-slider-container">
+                        <input type="range" min="0" max="150" value="100" class="stem-slider" id="stemSlider_vocal" oninput="onStemSliderChange('vocal', this.value)">
+                    </div>
+                    <div class="stem-btn-row">
+                        <button class="stem-action-btn" id="stemMuteBtn_vocal" onclick="toggleStemMute('vocal')">🔇 Mute</button>
+                        <button class="stem-action-btn" id="stemSoloBtn_vocal" onclick="toggleStemSolo('vocal')">🎧 Solo</button>
+                    </div>
+                </div>
+
+                <!-- Canal 2: DRUMS (BATIDA) -->
+                <div class="stem-card stem-card-drums">
+                    <div class="stem-header">
+                        <span class="stem-icon">🥁</span>
+                        <span class="stem-name">Batida & Percussão</span>
+                        <span class="stem-freq">Kicks, Caixas & Chimbais (Ataque & Punch)</span>
+                        <span class="stem-val" id="stemVal_drums">100%</span>
+                    </div>
+                    <!-- VU Meter Real-Time -->
+                    <div class="stem-meter-container">
+                        <div class="stem-meter-bar">
+                            <div class="stem-meter-fill stem-meter-drums" id="stemMeterFill_drums" style="width: 0%;"></div>
+                        </div>
+                        <span class="stem-meter-val" id="stemMeterVal_drums">-∞ dB</span>
+                    </div>
+                    <div class="stem-slider-container">
+                        <input type="range" min="0" max="150" value="100" class="stem-slider" id="stemSlider_drums" oninput="onStemSliderChange('drums', this.value)">
+                    </div>
+                    <div class="stem-btn-row">
+                        <button class="stem-action-btn" id="stemMuteBtn_drums" onclick="toggleStemMute('drums')">🔇 Mute</button>
+                        <button class="stem-action-btn" id="stemSoloBtn_drums" onclick="toggleStemSolo('drums')">🎧 Solo</button>
+                    </div>
+                </div>
+
+                <!-- Canal 3: BASS (GRAVE) -->
+                <div class="stem-card stem-card-bass">
+                    <div class="stem-header">
+                        <span class="stem-icon">🎸</span>
+                        <span class="stem-name">Baixo & Sub 808</span>
+                        <span class="stem-freq">Sub & 808 (&lt; 200Hz • 24dB/oct)</span>
+                        <span class="stem-val" id="stemVal_bass">100%</span>
+                    </div>
+                    <!-- VU Meter Real-Time -->
+                    <div class="stem-meter-container">
+                        <div class="stem-meter-bar">
+                            <div class="stem-meter-fill stem-meter-bass" id="stemMeterFill_bass" style="width: 0%;"></div>
+                        </div>
+                        <span class="stem-meter-val" id="stemMeterVal_bass">-∞ dB</span>
+                    </div>
+                    <div class="stem-slider-container">
+                        <input type="range" min="0" max="150" value="100" class="stem-slider" id="stemSlider_bass" oninput="onStemSliderChange('bass', this.value)">
+                    </div>
+                    <div class="stem-btn-row">
+                        <button class="stem-action-btn" id="stemMuteBtn_bass" onclick="toggleStemMute('bass')">🔇 Mute</button>
+                        <button class="stem-action-btn" id="stemSoloBtn_bass" onclick="toggleStemSolo('bass')">🎧 Solo</button>
+                    </div>
+                </div>
+
+                <!-- Canal 4: INSTRUMENTAL (MELODIA) -->
+                <div class="stem-card stem-card-inst">
+                    <div class="stem-header">
+                        <span class="stem-icon">🎹</span>
+                        <span class="stem-name">Melodia & Sintes</span>
+                        <span class="stem-freq">Harmonia, Guitarras & Estéreo Wide (&gt; 350Hz)</span>
+                        <span class="stem-val" id="stemVal_inst">100%</span>
+                    </div>
+                    <!-- VU Meter Real-Time -->
+                    <div class="stem-meter-container">
+                        <div class="stem-meter-bar">
+                            <div class="stem-meter-fill stem-meter-inst" id="stemMeterFill_inst" style="width: 0%;"></div>
+                        </div>
+                        <span class="stem-meter-val" id="stemMeterVal_inst">-∞ dB</span>
+                    </div>
+                    <div class="stem-slider-container">
+                        <input type="range" min="0" max="150" value="100" class="stem-slider" id="stemSlider_inst" oninput="onStemSliderChange('inst', this.value)">
+                    </div>
+                    <div class="stem-btn-row">
+                        <button class="stem-action-btn" id="stemMuteBtn_inst" onclick="toggleStemMute('inst')">🔇 Mute</button>
+                        <button class="stem-action-btn" id="stemSoloBtn_inst" onclick="toggleStemSolo('inst')">🎧 Solo</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="eq-footer">
+                <span class="eq-badge-saved">⚡ Motor DSP 4-Stems ativo • Isolamento cirúrgico com cancelamento de fase Mid/Side</span>
+                <button class="btn-modal-done" onclick="closeStemsModal()">✓ Concluído</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Injeção dos Dados Dinâmicos e Scripts Modulares do Player -->
+    <script>
+        window.DATA = __DATA_JSON__;
+        window.ICONS = __ICONS_JSON__;
+        window.CATEGORIES = __CATEGORIES_JSON__;
+        window.SPOTIFY_PLAYLISTS = __SPOTIFY_PLAYLISTS_JSON__;
+    </script>
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script src="/assets/js/player.js?v=20261117_03"></script>
+    <!-- MODAL GERENCIADOR DE FILA ESTILO SPOTIFY -->
+    
+    <!-- MODAL ESTÚDIO PROFISSIONAL & MASTERING DSP CONSOLE -->
+    <div class="eq-modal-overlay" id="studioModal" onclick="closeStudioModal(event)" style="display: none;">
+        <div class="eq-modal-card studio-modal-card" onclick="event.stopPropagation()">
+            <!-- HEADER DA CONSOLE DE ESTÚDIO -->
+            <div class="studio-modal-header">
+                <div class="studio-title-box">
+                    <div class="studio-modal-title">
+                        <span class="studio-pulse-led"></span>
+                        <span>🎚️ CONSOLE DE ESTÚDIO & MASTERING DSP PRO [EXTENDED]</span>
+                        <span class="studio-badge-pro">PRO AUDIO 96kHz / 32-BIT</span>
+                    </div>
+                    <div class="studio-modal-sub">
+                        Mastering de Estúdio: Exciter Air 12kHz, Sub 808 Pultec, De-Esser, Compressor SSL, Tape Warmth, Haas 3D, Reverb/Delay e Brickwall Maximizer.
+                    </div>
+                </div>
+                <div class="studio-header-actions">
+                    <button class="btn-studio-mono" id="btnStudioMono" onclick="toggleStudioMonoCheck()" title="Checagem Mono (Verificar cancelamento de fase)">
+                        <span id="studioMonoDot" class="mono-dot"></span>
+                        <span id="studioMonoLabel">STEREO</span>
+                    </button>
+                    <button class="btn-studio-bypass" id="btnStudioBypass" onclick="toggleStudioBypass()" title="Alternar entre Som Processado e Som Direto (A/B Test)">
+                        <span id="studioBypassDot" class="bypass-dot active"></span>
+                        <span id="studioBypassLabel">DSP ATIVO</span>
+                    </button>
+                    <button class="btn-studio-reset" onclick="resetStudioFlat()" title="Resetar parâmetros para Flat">↺ Flat</button>
+                    <button class="eq-close-btn" onclick="closeStudioModal()" title="Fechar Console de Estúdio" aria-label="Fechar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+                </div>
+            </div>
+
+            <!-- ANALOG VU METERS & PERCEIVED LOUDNESS METERS -->
+            <div class="studio-meters-panel">
+                <div class="studio-meter-group">
+                    <div class="studio-meter-header">
+                        <span>CANAL ESQUERDO (L)</span>
+                        <span id="studioVuValL" class="meter-db-val">-18 dBFS</span>
+                    </div>
+                    <div class="studio-vu-track">
+                        <div class="studio-vu-fill vu-left" id="studioVuFillL" style="width: 45%;"></div>
+                        <div class="studio-vu-peak" id="studioVuPeakL" style="left: 45%;"></div>
+                    </div>
+                    <div class="studio-db-scale">
+                        <span>-48</span><span>-30</span><span>-18</span><span>-12</span><span>-6</span><span>-3</span><span>0</span><span class="clip-label">+3</span>
+                    </div>
+                </div>
+
+                <div class="studio-meter-group">
+                    <div class="studio-meter-header">
+                        <span>CANAL DIREITO (R)</span>
+                        <span id="studioVuValR" class="meter-db-val">-18 dBFS</span>
+                    </div>
+                    <div class="studio-vu-track">
+                        <div class="studio-vu-fill vu-right" id="studioVuFillR" style="width: 45%;"></div>
+                        <div class="studio-vu-peak" id="studioVuPeakR" style="left: 45%;"></div>
+                    </div>
+                    <div class="studio-db-scale">
+                        <span>-48</span><span>-30</span><span>-18</span><span>-12</span><span>-6</span><span>-3</span><span>0</span><span class="clip-label">+3</span>
+                    </div>
+                </div>
+
+                <div class="studio-meter-group gr-meter-group">
+                    <div class="studio-meter-header">
+                        <span>SSL BUS REDUCTION (GR)</span>
+                        <span id="studioGrVal" class="meter-db-val">0.0 dB</span>
+                    </div>
+                    <div class="studio-vu-track gr-track">
+                        <div class="studio-vu-fill vu-gr" id="studioGrFill" style="width: 0%;"></div>
+                    </div>
+                    <div class="studio-db-scale">
+                        <span>0</span><span>-2</span><span>-4</span><span>-6</span><span>-8</span><span>-12</span><span>-16</span><span>-20 dB</span>
+                    </div>
+                </div>
+
+                <div class="studio-meter-group loudness-meter-group">
+                    <div class="studio-meter-header">
+                        <span>PERCEIVED LOUDNESS</span>
+                        <span id="studioLufsVal" class="meter-db-val">-14 LUFS</span>
+                    </div>
+                    <div class="studio-vu-track lufs-track">
+                        <div class="studio-vu-fill vu-lufs" id="studioLufsFill" style="width: 60%;"></div>
+                        <div class="studio-vu-peak" id="studioLufsPeak" style="left: 60%;"></div>
+                    </div>
+                    <div class="studio-db-scale">
+                        <span>-36</span><span>-24</span><span>-18</span><span style="color:#00f2fe;">-14</span><span>-10</span><span class="clip-label">-6 LUFS</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- REAL-TIME FFT SPECTRUM ANALYZER (CANVAS) -->
+            <div class="studio-spectrum-box">
+                <div class="studio-spectrum-header">
+                    <span>🎛️ ANALISADOR DE ESPECTRO EM TEMPO REAL (MASTERING FFT)</span>
+                    <div class="spectrum-bands-legend">
+                        <span class="spec-tag sub">SUB 20-60Hz</span>
+                        <span class="spec-tag bass">BASS 60-250Hz</span>
+                        <span class="spec-tag mid">MID 250-1k</span>
+                        <span class="spec-tag high-mid">HIGH-MID 1k-4k</span>
+                        <span class="spec-tag presence">PRESENCE 4k-10k</span>
+                        <span class="spec-tag air">AIR 10k-20k</span>
+                    </div>
+                </div>
+                <canvas id="studioSpectrumCanvas" width="840" height="72"></canvas>
+            </div>
+
+            <!-- PRESETS DE ESTÚDIO 1-CLIQUE (10 PRESETS) -->
+            <div class="studio-presets-row">
+                <span class="presets-label">PRESETS DE ESTÚDIO:</span>
+                <div class="studio-presets-list">
+                    <button class="studio-preset-chip active" id="stPreset_mastering" onclick="selectStudioPreset('mastering')">🎧 Neve Warmth</button>
+                    <button class="studio-preset-chip" id="stPreset_hall" onclick="selectStudioPreset('hall')">🏰 Concert Arena</button>
+                    <button class="studio-preset-chip" id="stPreset_club" onclick="selectStudioPreset('club')">⚡ SSL Club Master</button>
+                    <button class="studio-preset-chip" id="stPreset_vocal" onclick="selectStudioPreset('vocal')">🎙️ Vocal Clarity & Air</button>
+                    <button class="studio-preset-chip" id="stPreset_lofi" onclick="selectStudioPreset('lofi')">📻 Lo-Fi Tape</button>
+                    <button class="studio-preset-chip" id="stPreset_subpunch" onclick="selectStudioPreset('subpunch')">💣 Sub-Bass 808</button>
+                    <button class="studio-preset-chip" id="stPreset_crystal" onclick="selectStudioPreset('crystal')">💎 Modern Pop/EDM</button>
+                    <button class="studio-preset-chip" id="stPreset_loudness" onclick="selectStudioPreset('loudness')">🔊 Loudness War (+6dB)</button>
+                    <button class="studio-preset-chip" id="stPreset_acoustic" onclick="selectStudioPreset('acoustic')">🎷 Acoustic Live</button>
+                    <button class="studio-preset-chip" id="stPreset_flat" onclick="selectStudioPreset('flat')">🎚️ Flat Ref</button>
+                </div>
+            </div>
+
+            <!-- RACK STRIPS GRID: 8 MÓDULOS DE PROCESSAMENTO -->
+            <div class="studio-rack-grid">
+                <!-- MÓDULO 1: REVERB ACÚSTICO ESPACIAL -->
+                <div class="studio-rack-card">
+                    <div class="rack-card-header">
+                        <div class="rack-title"><span class="rack-dot reverb-dot"></span> 🏛️ REVERB DE ESTÚDIO</div>
+                        <span class="rack-badge" id="reverbTypeBadge">HALL</span>
+                    </div>
+                    <div class="rack-controls-col">
+                        <div class="rack-ctrl-row">
+                            <span class="ctrl-label">Ambiente / Sala</span>
+                            <div class="reverb-type-btns">
+                                <button class="btn-rev-type active" id="btnRev_hall" onclick="setStudioReverbType('hall')">Hall</button>
+                                <button class="btn-rev-type" id="btnRev_plate" onclick="setStudioReverbType('plate')">Plate</button>
+                                <button class="btn-rev-type" id="btnRev_club" onclick="setStudioReverbType('club')">Club</button>
+                                <button class="btn-rev-type" id="btnRev_room" onclick="setStudioReverbType('room')">Room</button>
+                                <button class="btn-rev-type" id="btnRev_cathedral" onclick="setStudioReverbType('cathedral')">Catedral</button>
+                                <button class="btn-rev-type" id="btnRev_spring" onclick="setStudioReverbType('spring')">Spring</button>
+                            </div>
+                        </div>
+                        <div class="rack-ctrl-row">
+                            <div class="ctrl-info">
+                                <span>Pre-Delay (Clareza)</span>
+                                <strong id="valStudioReverbPreDelay">20ms</strong>
+                            </div>
+                            <input type="range" min="0" max="0.08" step="0.005" value="0.02" class="studio-slider" id="sliderStudioReverbPreDelay" oninput="onStudioParamChange('reverbPreDelay', this.value)">
+                        </div>
+                        <div class="rack-ctrl-row">
+                            <div class="ctrl-info">
+                                <span>Tempo de Decaimento (Decay Tail)</span>
+                                <strong id="valStudioReverbDecay">1.8s</strong>
+                            </div>
+                            <input type="range" min="0.4" max="5.0" step="0.1" value="1.8" class="studio-slider" id="sliderStudioReverbDecay" oninput="onStudioParamChange('reverbDecay', this.value)">
+                        </div>
+                        <div class="rack-ctrl-row">
+                            <div class="ctrl-info">
+                                <span>Mistura (Wet / Dry)</span>
+                                <strong id="valStudioReverbMix">22%</strong>
+                            </div>
+                            <input type="range" min="0" max="100" step="1" value="22" class="studio-slider" id="sliderStudioReverbMix" oninput="onStudioParamChange('reverbMix', this.value)">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MÓDULO 2: STEREO PING-PONG & TAPE DELAY -->
+                <div class="studio-rack-card">
+                    <div class="rack-card-header">
+                        <div class="rack-title"><span class="rack-dot delay-dot"></span> ⏱️ DELAY ANALÓGICO & TAPE</div>
+                        <span class="rack-badge">PING-PONG</span>
+                    </div>
+                    <div class="rack-controls-col">
+                        <div class="rack-ctrl-row">
+                            <span class="ctrl-label">Sincronia de Tempo</span>
+                            <div class="delay-time-btns">
+                                <button class="btn-del-time" onclick="setStudioDelayPreset(0.12, '1/8')">1/8</button>
+                                <button class="btn-del-time active" id="btnDel_quarter" onclick="setStudioDelayPreset(0.24, '1/4')">1/4</button>
+                                <button class="btn-del-time" onclick="setStudioDelayPreset(0.48, '1/2')">1/2</button>
+                                <button class="btn-del-time" onclick="setStudioDelayPreset(0.18, '1/8d')">1/8d</button>
+                                <button class="btn-del-time" onclick="setStudioDelayPreset(0.16, '1/4t')">1/4t</button>
+                            </div>
+                        </div>
+                        <div class="rack-ctrl-row">
+                            <div class="ctrl-info">
+                                <span>Filtro Hi-Cut do Eco (Warmth)</span>
+                                <strong id="valStudioDelayHiCut">3500 Hz</strong>
+                            </div>
+                            <input type="range" min="1200" max="8000" step="100" value="3500" class="studio-slider" id="sliderStudioDelayHiCut" oninput="onStudioParamChange('delayHiCut', this.value)">
+                        </div>
+                        <div class="rack-ctrl-row">
+                            <div class="ctrl-info">
+                                <span>Feedback / Repetições</span>
+                                <strong id="valStudioDelayFeedback">28%</strong>
+                            </div>
+                            <input type="range" min="0" max="80" step="1" value="28" class="studio-slider" id="sliderStudioDelayFeedback" oninput="onStudioParamChange('delayFeedback', this.value)">
+                        </div>
+                        <div class="rack-ctrl-row">
+                            <div class="ctrl-info">
+                                <span>Mistura do Eco (Wet / Dry)</span>
+                                <strong id="valStudioDelayMix">18%</strong>
+                            </div>
+                            <input type="range" min="0" max="100" step="1" value="18" class="studio-slider" id="sliderStudioDelayMix" oninput="onStudioParamChange('delayMix', this.value)">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MÓDULO 3: COMPRESSOR DE MASTERING SSL BUS -->
+                <div class="studio-rack-card">
+                    <div class="rack-card-header">
+                        <div class="rack-title"><span class="rack-dot comp-dot"></span> 🎚️ COMPRESSOR SSL BUS GLUE</div>
+                        <span class="rack-badge">G-MASTER</span>
+                    </div>
+                    <div class="rack-controls-col">
+                        <div class="rack-ctrl-row">
+                            <div class="ctrl-info">
+                                <span>Sidechain Bass HPF (Graves Livres)</span>
+                                <strong id="valStudioCompHpf">80 Hz</strong>
+                            </div>
+                            <div class="comp-hpf-btns">
+                                <button class="btn-comp-hpf" id="btnCompHpf_off" onclick="setStudioCompHpf(0, 'Off')">Off</button>
+                                <button class="btn-comp-hpf active" id="btnCompHpf_80" onclick="setStudioCompHpf(80, '80 Hz')">80 Hz</button>
+                                <button class="btn-comp-hpf" id="btnCompHpf_140" onclick="setStudioCompHpf(140, '140 Hz')">140 Hz</button>
+                            </div>
+                        </div>
+                        <div class="rack-ctrl-row">
+                            <div class="ctrl-info">
+                                <span>Threshold (Limiar)</span>
+                                <strong id="valStudioCompThresh">-14 dB</strong>
+                            </div>
+                            <input type="range" min="-36" max="0" step="1" value="-14" class="studio-slider" id="sliderStudioCompThresh" oninput="onStudioParamChange('compThreshold', this.value)">
+                        </div>
+                        <div class="rack-ctrl-row">
+                            <div class="ctrl-info">
+                                <span>Ratio (Taxa de Compressão)</span>
+                                <strong id="valStudioCompRatio">4:1</strong>
+                            </div>
+                            <input type="range" min="1.5" max="10" step="0.5" value="4.0" class="studio-slider" id="sliderStudioCompRatio" oninput="onStudioParamChange('compRatio', this.value)">
+                        </div>
+                        <div class="rack-ctrl-row attack-release-row">
+                            <div class="mini-ctrl">
+                                <span>Ataque</span>
+                                <strong id="valStudioCompAttack">5ms</strong>
+                                <input type="range" min="0.001" max="0.05" step="0.002" value="0.005" class="studio-slider mini" id="sliderStudioCompAttack" oninput="onStudioParamChange('compAttack', this.value)">
+                            </div>
+                            <div class="mini-ctrl">
+                                <span>Release</span>
+                                <strong id="valStudioCompRelease">150ms</strong>
+                                <input type="range" min="0.05" max="0.5" step="0.02" value="0.15" class="studio-slider mini" id="sliderStudioCompRelease" oninput="onStudioParamChange('compRelease', this.value)">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MÓDULO 4: CALOR VALVULADO & IMAGEM ESTÉREO 3D -->
+                <div class="studio-rack-card">
+                    <div class="rack-card-header">
+                        <div class="rack-title"><span class="rack-dot warm-dot"></span> 🔥 CALOR ANALÓGICO & 3D WIDE</div>
+                        <span class="rack-badge">NEVE TUBE</span>
+                    </div>
+                    <div class="rack-controls-col">
+                        <div class="rack-ctrl-row">
+                            <span class="ctrl-label">Coloração Analógica</span>
+                            <div class="warmth-color-btns">
+                                <button class="btn-warmth-color active" id="btnWarmth_tube" onclick="setStudioWarmthColor('tube')">6L6 Tube</button>
+                                <button class="btn-warmth-color" id="btnWarmth_tape" onclick="setStudioWarmthColor('tape')">Tape Oxide</button>
+                                <button class="btn-warmth-color" id="btnWarmth_germanium" onclick="setStudioWarmthColor('germanium')">Germanium</button>
+                            </div>
+                        </div>
+                        <div class="rack-ctrl-row">
+                            <div class="ctrl-info">
+                                <span>Saturação Analógica (Drive)</span>
+                                <strong id="valStudioWarmth">30%</strong>
+                            </div>
+                            <input type="range" min="0" max="100" step="1" value="30" class="studio-slider" id="sliderStudioWarmth" oninput="onStudioParamChange('warmthDrive', this.value)">
+                        </div>
+                        <div class="rack-ctrl-row">
+                            <div class="ctrl-info">
+                                <span>Largura Estéreo (Haas 3D Spatializer)</span>
+                                <strong id="valStudioWidth">135%</strong>
+                            </div>
+                            <input type="range" min="0" max="200" step="5" value="135" class="studio-slider" id="sliderStudioWidth" oninput="onStudioParamChange('stereoWidth', this.value)">
+                        </div>
+                        <div class="studio-width-tags">
+                            <span>Mono (0%)</span>
+                            <span>Normal (100%)</span>
+                            <span>Super 3D (200%)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MÓDULO 5: AURAL EXCITER & AIR BAND 12kHz+ (NOVO!) -->
+                <div class="studio-rack-card">
+                    <div class="rack-card-header">
+                        <div class="rack-title"><span class="rack-dot air-dot"></span> 💎 AURAL EXCITER & AIR BAND</div>
+                        <span class="rack-badge">APHEX 12kHz</span>
+                    </div>
+                    <div class="rack-controls-col">
+                        <div class="rack-ctrl-row">
+                            <span class="ctrl-label">Frequência Air Band</span>
+                            <div class="air-freq-btns">
+                                <button class="btn-air-freq" id="btnAir_8k" onclick="setStudioAirFreq(8000, '8 kHz')">8 kHz</button>
+                                <button class="btn-air-freq" id="btnAir_10k" onclick="setStudioAirFreq(10000, '10 kHz')">10 kHz</button>
+                                <button class="btn-air-freq active" id="btnAir_12k" onclick="setStudioAirFreq(12000, '12 kHz')">12 kHz</button>
+                                <button class="btn-air-freq" id="btnAir_16k" onclick="setStudioAirFreq(16000, '16 kHz')">16 kHz</button>
+                            </div>
+                        </div>
+                        <div class="rack-ctrl-row">
+                            <div class="ctrl-info">
+                                <span>Air Boost (Brilho & Claridade de Agudos)</span>
+                                <strong id="valStudioAirBoost" style="color: #00f2fe;">+4.0 dB</strong>
+                            </div>
+                            <input type="range" min="0" max="12" step="0.5" value="4.0" class="studio-slider" id="sliderStudioAirBoost" oninput="onStudioParamChange('airBoost', this.value)">
+                        </div>
+                        <div class="rack-ctrl-row">
+                            <div class="ctrl-info">
+                                <span>Harmonic Sparkle (Presença Exciter)</span>
+                                <strong id="valStudioAirSparkle" style="color: #00f2fe;">35%</strong>
+                            </div>
+                            <input type="range" min="0" max="100" step="1" value="35" class="studio-slider" id="sliderStudioAirSparkle" oninput="onStudioParamChange('airSparkle', this.value)">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MÓDULO 6: SUB-BASS ENHANCER & PULTEC LOW PUNCH (NOVO!) -->
+                <div class="studio-rack-card">
+                    <div class="rack-card-header">
+                        <div class="rack-title"><span class="rack-dot sub-dot"></span> 💣 SUB-BASS 808 & PULTEC PUNCH</div>
+                        <span class="rack-badge">EQP-1A</span>
+                    </div>
+                    <div class="rack-controls-col">
+                        <div class="rack-ctrl-row">
+                            <span class="ctrl-label">Frequência Central do Sub</span>
+                            <div class="sub-freq-btns">
+                                <button class="btn-sub-freq" id="btnSub_45" onclick="setStudioSubFreq(45, '45 Hz')">45 Hz</button>
+                                <button class="btn-sub-freq active" id="btnSub_60" onclick="setStudioSubFreq(60, '60 Hz')">60 Hz</button>
+                                <button class="btn-sub-freq" id="btnSub_80" onclick="setStudioSubFreq(80, '80 Hz')">80 Hz</button>
+                                <button class="btn-sub-freq" id="btnSub_100" onclick="setStudioSubFreq(100, '100 Hz')">100 Hz</button>
+                            </div>
+                        </div>
+                        <div class="rack-ctrl-row">
+                            <div class="ctrl-info">
+                                <span>Sub Punch Boost (Peso dos Graves)</span>
+                                <strong id="valStudioSubBoost" style="color: #f43f5e;">+4.5 dB</strong>
+                            </div>
+                            <input type="range" min="0" max="12" step="0.5" value="4.5" class="studio-slider" id="sliderStudioSubBoost" oninput="onStudioParamChange('subBoost', this.value)">
+                        </div>
+                        <div class="rack-ctrl-row">
+                            <div class="ctrl-info">
+                                <span>Low-Cut Sub Rumble (Limpeza Subsônica)</span>
+                                <strong id="valStudioSubRumble" style="color: #f43f5e;">30 Hz</strong>
+                            </div>
+                            <div class="rumble-cut-btns">
+                                <button class="btn-rumble-cut" id="btnRumble_off" onclick="setStudioRumbleCut(0, 'Off')">Off</button>
+                                <button class="btn-rumble-cut" id="btnRumble_25" onclick="setStudioRumbleCut(25, '25 Hz')">25 Hz</button>
+                                <button class="btn-rumble-cut active" id="btnRumble_30" onclick="setStudioRumbleCut(30, '30 Hz')">30 Hz</button>
+                                <button class="btn-rumble-cut" id="btnRumble_35" onclick="setStudioRumbleCut(35, '35 Hz')">35 Hz</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MÓDULO 7: DE-ESSER & CONTROLE DINÂMICO DE ESTRIDÊNCIA (NOVO!) -->
+                <div class="studio-rack-card">
+                    <div class="rack-card-header">
+                        <div class="rack-title"><span class="rack-dot deess-dot"></span> 🛡️ DE-ESSER ANTI-ESTRIDÊNCIA</div>
+                        <span class="rack-badge">DYNAMIC NOTCH</span>
+                    </div>
+                    <div class="rack-controls-col">
+                        <div class="rack-ctrl-row">
+                            <span class="ctrl-label">Frequência de Sibilância</span>
+                            <div class="deess-freq-btns">
+                                <button class="btn-deess-freq" id="btnDeEss_55" onclick="setStudioDeEssFreq(5500, '5.5 kHz')">5.5 kHz</button>
+                                <button class="btn-deess-freq active" id="btnDeEss_65" onclick="setStudioDeEssFreq(6500, '6.5 kHz')">6.5 kHz</button>
+                                <button class="btn-deess-freq" id="btnDeEss_75" onclick="setStudioDeEssFreq(7500, '7.5 kHz')">7.5 kHz</button>
+                            </div>
+                        </div>
+                        <div class="rack-ctrl-row">
+                            <div class="ctrl-info">
+                                <span>Redução de Estridência (Tamer)</span>
+                                <strong id="valStudioDeEss" style="color: #2dd4bf;">30% (-2.5 dB)</strong>
+                            </div>
+                            <input type="range" min="0" max="100" step="1" value="30" class="studio-slider" id="sliderStudioDeEss" oninput="onStudioParamChange('deEsserAmount', this.value)">
+                        </div>
+                        <div style="font-size: 9.5px; color: #64748b; line-height: 1.3;">
+                            Atenua agudos cortantes e sons "ssss" excessivos de gravações comprimidas sem perder o brilho geral.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MÓDULO 8: BRICKWALL MASTER LIMITER & MAXIMIZER (NOVO!) -->
+                <div class="studio-rack-card">
+                    <div class="rack-card-header">
+                        <div class="rack-title"><span class="rack-dot limit-dot"></span> 🔊 BRICKWALL MAXIMIZER & LIMITER</div>
+                        <span class="rack-badge">TRUE-PEAK</span>
+                    </div>
+                    <div class="rack-controls-col">
+                        <div class="rack-ctrl-row">
+                            <div class="ctrl-info">
+                                <span>Master Make-Up Gain (Loudness Drive)</span>
+                                <strong id="valStudioMaximizer" style="color: #eab308;">+3.0 dB</strong>
+                            </div>
+                            <input type="range" min="0" max="9" step="0.5" value="3.0" class="studio-slider" id="sliderStudioMaximizer" oninput="onStudioParamChange('maximizerDrive', this.value)">
+                        </div>
+                        <div class="rack-ctrl-row">
+                            <span class="ctrl-label">True-Peak Ceiling (Teto de Proteção Anti-Clip)</span>
+                            <div class="limiter-ceiling-btns">
+                                <button class="btn-limiter-ceiling active" id="btnCeil_01" onclick="setStudioLimiterCeiling(-0.1, '-0.1 dBFS')">-0.1 dBFS</button>
+                                <button class="btn-limiter-ceiling" id="btnCeil_05" onclick="setStudioLimiterCeiling(-0.5, '-0.5 dBFS')">-0.5 dBFS</button>
+                                <button class="btn-limiter-ceiling" id="btnCeil_10" onclick="setStudioLimiterCeiling(-1.0, '-1.0 dBFS')">-1.0 dBFS</button>
+                            </div>
+                        </div>
+                        <div style="font-size: 9.5px; color: #64748b; line-height: 1.3;">
+                            Eleva o volume comercial final da música com zero distorção, garantindo proteção contra clipping digital.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FOOTER -->
+            <div class="studio-footer">
+                <span class="studio-engine-status">⚡ DSP de Alta Precisão Web Audio • Processamento Linear a 32-bit Ponto Flutuante • 8 Racks Ativos</span>
+                <button class="btn-modal-done" onclick="closeStudioModal()">✓ Salvar & Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="eq-modal-overlay" id="spotifyQueueModal" onclick="closeSpotifyQueueModal(event)">
+        <div class="eq-modal-card queue-modal-card" onclick="event.stopPropagation()">
+            <div class="eq-modal-header">
+                <div>
+                    <div class="eq-modal-title">
+                        <span>📋 Fila de Reprodução (Spotify)</span>
+                        <span class="player-queue-badge" id="modalQueueBadgeCount" style="margin-left: 8px;">0 músicas</span>
+                    </div>
+                    <div class="eq-modal-sub">
+                        Gerencie as próximas músicas da sua fila. Adicione, reordene ou remova faixas sem parar o som!
+                    </div>
+                </div>
+                <button class="eq-close-btn" onclick="closeSpotifyQueueModal()" title="Fechar Fila Spotify" aria-label="Fechar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+            </div>
+            <div class="queue-modal-body">
+                <!-- Tocando Agora -->
+                <div class="queue-modal-section-title">▶ Tocando Agora</div>
+                <div id="queueModalNowPlaying" class="queue-now-playing-box"></div>
+
+                <!-- Próximas na Fila -->
+                <div class="queue-modal-section-header">
+                    <div class="queue-modal-section-title">⏭️ Próximas na Fila</div>
+                    <button class="btn-clear-queue-modal" onclick="clearAllQueue()" title="Limpar todas as faixas da fila">🗑️ Limpar Fila</button>
+                </div>
+                <div id="queueModalItems" class="queue-modal-list"></div>
+            </div>
+            <div class="queue-modal-footer">
+                <button class="btn-modal-done" onclick="closeSpotifyQueueModal()">✓ Concluído</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE SINCRONIZAÇÃO DE BPM & PITCH MATCH (BEATMATCHING DJ) -->
+    <div class="eq-modal-overlay" id="bpmSyncModal" onclick="closeBpmModal(event)">
+        <div class="eq-modal-card bpm-modal-card" onclick="event.stopPropagation()">
+            <div class="eq-modal-header">
+                <div>
+                    <div class="eq-modal-title">
+                        <span>⚡ Sincronização de BPM & Beatmatching</span>
+                        <span class="badge-bpm-chip" id="bpmSyncStatusBadge" style="margin-left: 8px;">Auto Sync Ativo</span>
+                    </div>
+                    <div class="eq-modal-sub">
+                        Sincronize o andamento (BPM) das próximas músicas para transições perfeitamente contínuas e sem choque de ritmo.
+                    </div>
+                </div>
+                <button class="eq-close-btn" onclick="closeBpmModal()" title="Fechar Sincronizador de BPM" aria-label="Fechar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+            </div>
+            
+            <div class="bpm-modal-body">
+                <!-- Comparativo Lado a Lado dos Decks -->
+                <div class="bpm-decks-compare-grid">
+                    <!-- Deck Atual (Tocando) -->
+                    <div class="bpm-deck-card current">
+                        <div class="bpm-deck-header">
+                            <span class="bpm-deck-tag playing">● TOCANDO AGORA</span>
+                            <span class="bpm-val-badge" id="bpmCurrentVal">130 BPM</span>
+                        </div>
+                        <div class="bpm-deck-track-title" id="bpmCurrentTrackTitle">Carregando faixa...</div>
+                        <div class="bpm-deck-track-artist" id="bpmCurrentTrackArtist">-</div>
+                        <div class="bpm-deck-tempo-meter">
+                            <div class="bpm-tempo-pulse" id="bpmCurrentPulse"></div>
+                        </div>
+                    </div>
+
+                    <!-- Indicador de Diferença e Compatibilidade -->
+                    <div class="bpm-diff-indicator-col">
+                        <div class="bpm-diff-badge" id="bpmDiffBadge">0 BPM (0.0%)</div>
+                        <div class="bpm-compat-label" id="bpmCompatLabel">🟢 Compatibilidade Perfeita</div>
+                        <button class="btn-quick-match" onclick="quickMatchBpm()" title="Igualar BPM da próxima faixa imediatamente">⚡ Sincronizar Agora</button>
+                    </div>
+
+                    <!-- Próximo Deck (A Seguir / Na Fila) -->
+                    <div class="bpm-deck-card next">
+                        <div class="bpm-deck-header">
+                            <span class="bpm-deck-tag next">⏭️ A SEGUIR</span>
+                            <span class="bpm-val-badge" id="bpmNextVal">130 BPM</span>
+                        </div>
+                        <div class="bpm-deck-track-title" id="bpmNextTrackTitle">Próxima faixa...</div>
+                        <div class="bpm-deck-track-artist" id="bpmNextTrackArtist">-</div>
+                        <div class="bpm-deck-tempo-meter">
+                            <div class="bpm-tempo-pulse next" id="bpmNextPulse"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Configuração de Beatmatch Automático no Crossfade -->
+                <div class="bpm-feature-box">
+                    <div class="bpm-toggle-row">
+                        <div>
+                            <div class="bpm-feature-title">🔁 Sincronização Automática (Beatmatch Inteligente)</div>
+                            <div class="bpm-feature-desc">Ajusta gradualmente o andamento da próxima música para igualar a atual durante o crossfade, garantindo mixagem contínua sem quebra de batida.</div>
+                        </div>
+                        <label class="switch-toggle" title="Ativar/Desativar Beatmatch Automático">
+                            <input type="checkbox" id="autoBpmSyncCheck" checked onchange="toggleAutoBpmSync(this.checked)">
+                            <span class="slider-toggle"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Controle Manual de Pitch / Tempo da Próxima Faixa -->
+                <div class="bpm-pitch-control-section">
+                    <div class="bpm-section-header">
+                        <span class="eq-section-title" style="margin-bottom:0;">🎚️ Ajuste Manual de Pitch & Velocidade (±15%)</span>
+                        <span class="bpm-pitch-readout" id="bpmPitchReadout">0.0% (Original)</span>
+                    </div>
+                    
+                    <div class="bpm-slider-wrapper">
+                        <span class="bpm-slider-limit">-15%</span>
+                        <input type="range" min="-15" max="15" step="0.5" value="0" class="bpm-pitch-slider" id="bpmPitchSlider" oninput="handleBpmPitchSlider(this.value)">
+                        <span class="bpm-slider-limit">+15%</span>
+                    </div>
+
+                    <div class="bpm-presets-row">
+                        <button class="btn-bpm-preset" onclick="setBpmPitchPreset(-5)">-5%</button>
+                        <button class="btn-bpm-preset" onclick="setBpmPitchPreset(-2)">-2%</button>
+                        <button class="btn-bpm-preset active" id="btnBpmPreset0" onclick="setBpmPitchPreset(0)">0% (Original)</button>
+                        <button class="btn-bpm-preset" onclick="setBpmPitchPreset(2)">+2%</button>
+                        <button class="btn-bpm-preset" onclick="setBpmPitchPreset(5)">+5%</button>
+                        <button class="btn-bpm-preset match" onclick="quickMatchBpm()">⚡ Match com Atual</button>
+                    </div>
+
+                    <div class="bpm-keylock-info">
+                        <span>🔒 <strong>Keylock / Preserves Pitch Ativo:</strong> A velocidade é alterada sem modificar o tom ou afinação da voz dos cantores.</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="eq-footer">
+                <span class="eq-badge-saved">⚡ Transição suave ativada para todas as categorias e buscas</span>
+                <button class="btn-modal-done" onclick="closeBpmModal()">✓ Concluído</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DO HISTÓRICO DE REPRODUÇÃO & SALVAR MÚSICAS DESCOBERTAS -->
+    <div class="eq-modal-overlay" id="historyModal" onclick="closeHistoryModal(event)">
+        <div class="eq-modal-card history-modal-card" onclick="event.stopPropagation()">
+            <div class="eq-modal-header">
+                <div>
+                    <div class="eq-modal-title">
+                        <span>📜 Histórico de Reprodução & Descobertas</span>
+                        <span class="player-queue-badge" id="modalHistoryBadgeCount" style="margin-left: 8px;">0 faixas</span>
+                    </div>
+                    <div class="eq-modal-sub">
+                        Músicas tocadas recentemente (inclusive descobertas do Modo Match Perfeito). Salve qualquer faixa favorita na sua biblioteca com 1 clique!
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button class="btn-clear-queue-modal" onclick="clearPlaybackHistory()" title="Limpar histórico recente">🗑️ Limpar</button>
+                    <button class="eq-close-btn" onclick="closeHistoryModal()" title="Fechar Histórico" aria-label="Fechar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+                </div>
+            </div>
+            <div class="history-modal-body">
+                <div id="historyModalItems" class="history-modal-list"></div>
+            </div>
+            <div class="queue-modal-footer">
+                <button class="btn-modal-done" onclick="closeHistoryModal()">✓ Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE MOVER MÚSICA DE PLAYLIST / CATEGORIA -->
+    <div class="eq-modal-overlay" id="movePlaylistModal" onclick="closeMovePlaylistModal(event)">
+        <div class="eq-modal-card move-modal-card" onclick="event.stopPropagation()">
+            <div class="eq-modal-header">
+                <div>
+                    <div class="eq-modal-title">
+                        <span>📂 Mover Música de Playlist</span>
+                    </div>
+                    <div class="eq-modal-sub" id="moveModalTrackSub">
+                        Selecione para qual playlist da sua biblioteca deseja transferir esta música.
+                    </div>
+                </div>
+                <button class="eq-close-btn" onclick="closeMovePlaylistModal()" title="Fechar" aria-label="Fechar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+            </div>
+            <div class="move-modal-body">
+                <!-- Preview da Música Selecionada -->
+                <div class="move-track-preview-box">
+                    <div class="move-track-icon-bubble">🎵</div>
+                    <div class="move-track-meta">
+                        <strong id="moveModalTrackTitle" class="move-track-title">Nome da Música</strong>
+                        <div class="move-track-subline">
+                            <span id="moveModalTrackArtist" class="move-track-artist">Artista</span>
+                            <span class="move-cat-sep">•</span>
+                            <span class="move-cat-current-label">Playlist Atual:</span>
+                            <span id="moveModalCurrentCat" class="move-cat-badge">Reggaeton, Cachengue & Latino</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="move-dest-header">
+                    <span>🎯 Selecione a Playlist de Destino:</span>
+                </div>
+
+                <!-- Grid de Playlists Disponíveis -->
+                <div class="move-playlists-grid" id="movePlaylistsGrid"></div>
+
+                <!-- Criar Nova Playlist -->
+                <div class="move-create-playlist-box">
+                    <div class="move-create-label">➕ Ou crie uma nova playlist personalizada:</div>
+                    <div class="move-create-row">
+                        <input type="text" id="inputNewPlaylistName" class="move-new-input" placeholder="Ex: Mega Funk Boliche 2026..." onkeydown="if(event.key==='Enter') createAndMoveToNewPlaylist()">
+                        <button type="button" class="btn-create-move-action" onclick="createAndMoveToNewPlaylist()">+ Criar & Mover</button>
+                    </div>
+                </div>
+            </div>
+            <div class="queue-modal-footer move-modal-footer">
+                <button type="button" class="btn-modal-cancel-move" onclick="closeMovePlaylistModal()">Cancelar</button>
+                <button type="button" class="btn-modal-confirm-move" id="btnConfirmMovePlaylist" onclick="executeMovePlaylist()">✓ Mover para Selecionada</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE CONFIRMAÇÃO DE REMOÇÃO DA BIBLIOTECA -->
+    <div class="eq-modal-overlay" id="confirmRemoveModal" onclick="closeConfirmRemoveModal(event)">
+        <div class="eq-modal-card remove-modal-card" onclick="event.stopPropagation()">
+            <div class="eq-modal-header">
+                <div class="eq-modal-title">
+                    <span style="color: #ff3366;">🗑️ Remover da Biblioteca</span>
+                </div>
+                <button class="eq-close-btn" onclick="closeConfirmRemoveModal()" title="Fechar" aria-label="Fechar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+            </div>
+            <div class="remove-modal-body">
+                <p class="remove-modal-prompt">Tem certeza que deseja remover esta música da sua biblioteca?</p>
+                <div class="remove-track-preview-box">
+                    <div class="remove-track-thumb-wrap">
+                        <img id="removeModalThumb" src="" class="remove-track-thumb" alt="Capa" onerror="this.src=window.DEFAULT_COVER_SVG">
+                    </div>
+                    <div class="remove-track-info">
+                        <div class="remove-modal-title-text" id="removeModalTrackTitle">Título da Música</div>
+                        <div class="remove-modal-artist-text" id="removeModalTrackArtist">Artista</div>
+                        <div class="remove-modal-cat-text">Playlist: <span id="removeModalCurrentCat" style="color: var(--accent);">Gênero</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="queue-modal-footer remove-modal-footer">
+                <button type="button" class="btn-modal-cancel-remove" onclick="closeConfirmRemoveModal()">Cancelar</button>
+                <button type="button" class="btn-modal-confirm-remove" id="btnConfirmDeleteTrack" onclick="executeRemoveLibraryTrack()">🗑️ Sim, Remover</button>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

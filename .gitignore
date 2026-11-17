@@ -1,0 +1,7 @@
+processed.json
+data/
+token.json
+client_secret.json
+__pycache__/
+*.pyc
+.pytest_cache/
